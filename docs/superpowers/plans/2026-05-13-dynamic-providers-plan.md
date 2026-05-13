@@ -13,6 +13,7 @@
 ### Task 1: Add Provider/ProviderConfig to models.rs
 
 **Files:**
+
 - Modify: `src-tauri/src/models.rs`
 
 - [ ] **Step 1: Add Provider and ProviderConfig structs**
@@ -53,6 +54,7 @@ git commit -m "feat: add Provider and ProviderConfig structs"
 ### Task 2: Create providers.rs module
 
 **Files:**
+
 - Create: `src-tauri/src/providers.rs`
 
 - [ ] **Step 1: Write providers.rs**
@@ -135,13 +137,14 @@ git commit -m "feat: add providers.rs load/save module"
 ### Task 3: Simplify ai.rs to 3 provider types
 
 **Files:**
+
 - Modify: `src-tauri/src/ai.rs`
 
 - [ ] **Step 1: Replace AiProvider enum and update dispatch**
 
 Change the entire file content:
 
-```rust
+````rust
 use crate::models::AiResponse;
 use reqwest::Client;
 
@@ -369,9 +372,10 @@ fn parse_ai_json(text: &str) -> Result<AiResponse, String> {
 
     Err(format!("Could not parse AI response as JSON: {}", text))
 }
-```
+````
 
 Key changes:
+
 - `AiProvider` enum: 3 variants instead of 5
 - `from_str`: "openai-compatible" and everything else → `OpenAiCompatible`
 - `api_endpoint`: takes (base_url, model, api_key) now since Google needs api_key in URL; `OpenAiCompatible` → `{base}/chat/completions`; `Anthropic` → `{base}/v1/messages`; `Google` → `{base}/v1beta/models/{model}:generateContent?key={api_key}`
@@ -396,6 +400,7 @@ git commit -m "refactor: simplify ai.rs to 3 provider types"
 ### Task 4: Update commands.rs — add provider commands + simplify get_available_models
 
 **Files:**
+
 - Modify: `src-tauri/src/commands.rs`
 
 - [ ] **Step 1: Add `use crate::providers;`**
@@ -584,6 +589,7 @@ git commit -m "feat: add provider commands, simplify get_available_models"
 ### Task 5: Update lib.rs
 
 **Files:**
+
 - Modify: `src-tauri/src/lib.rs`
 
 - [ ] **Step 1: Add `mod providers;` and register 3 commands**
@@ -635,6 +641,7 @@ git commit -m "feat: register providers module and commands"
 ### Task 6: Update frontend types.ts
 
 **Files:**
+
 - Modify: `src/types.ts`
 
 - [ ] **Step 1: Change ProviderType and add Provider/ProviderConfig**
@@ -642,11 +649,18 @@ git commit -m "feat: register providers module and commands"
 Replace `ProviderType` line and add new types after `DirEntry`:
 
 Change:
+
 ```typescript
-export type ProviderType = "ollama" | "lm-studio" | "openai" | "anthropic" | "google";
+export type ProviderType =
+  | "ollama"
+  | "lm-studio"
+  | "openai"
+  | "anthropic"
+  | "google";
 ```
 
 To:
+
 ```typescript
 export type ProviderType = "openai-compatible" | "anthropic" | "google";
 ```
@@ -687,6 +701,7 @@ git commit -m "feat: update types for dynamic providers"
 ### Task 7: Rewrite settingsStore.ts with provider management
 
 **Files:**
+
 - Modify: `src/stores/settingsStore.ts`
 
 - [ ] **Step 1: Write new store with providers state and actions**
@@ -737,8 +752,13 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   resetSettings: () => set(DEFAULT_SETTINGS),
 
   loadProviders: (config: ProviderConfig) => {
-    set({ providers: config.providers, activeProviderName: config.activeProvider });
-    const active = config.providers.find((p) => p.name === config.activeProvider);
+    set({
+      providers: config.providers,
+      activeProviderName: config.activeProvider,
+    });
+    const active = config.providers.find(
+      (p) => p.name === config.activeProvider,
+    );
     if (active) {
       set({
         provider: active.providerType,
@@ -822,6 +842,7 @@ git commit -m "feat: add provider management to settings store"
 ### Task 8: Rewrite SettingsSection.tsx
 
 **Files:**
+
 - Modify: `src/components/SettingsSection.tsx`
 
 - [ ] **Step 1: Write new SettingsSection with provider list**
@@ -898,7 +919,9 @@ export function SettingsSection() {
                 <div className="provider-item-info">
                   <span className="provider-item-name">{p.name}</span>
                   <span className="provider-item-type">{p.providerType}</span>
-                  <span className="provider-item-model">{p.model || "no model"}</span>
+                  <span className="provider-item-model">
+                    {p.model || "no model"}
+                  </span>
                 </div>
                 <button
                   className="provider-item-remove"
@@ -1010,6 +1033,7 @@ git commit -m "feat: rewrite SettingsSection with dynamic provider list"
 ### Task 9: Create AddProviderModal component
 
 **Files:**
+
 - Create: `src/components/AddProviderModal.tsx`
 
 - [ ] **Step 1: Write the modal component**
@@ -1040,8 +1064,11 @@ export function AddProviderModal({ onClose, onAdded }: Props) {
   const { providers, addProvider, persistProviders, switchProvider } =
     useSettingsStore();
   const [name, setName] = useState("");
-  const [providerType, setProviderType] = useState<ProviderType>("openai-compatible");
-  const [baseUrl, setBaseUrl] = useState(DEFAULT_BASE_URLS["openai-compatible"]);
+  const [providerType, setProviderType] =
+    useState<ProviderType>("openai-compatible");
+  const [baseUrl, setBaseUrl] = useState(
+    DEFAULT_BASE_URLS["openai-compatible"],
+  );
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState("");
 
@@ -1166,6 +1193,7 @@ git commit -m "feat: add AddProviderModal component"
 ### Task 10: Add CSS for provider list, modal, and settings divider
 
 **Files:**
+
 - Modify: `src/App.css`
 
 - [ ] **Step 1: Add styles before the History section**
@@ -1331,6 +1359,7 @@ Expected: Vite builds successfully
 - [ ] **Step 3: Run full verification**
 
 Run:
+
 ```bash
 pnpm build
 cargo check --manifest-path src-tauri/Cargo.toml
@@ -1350,15 +1379,15 @@ git commit -m "style: add provider list, modal, and settings divider CSS"
 
 ### Implementation order
 
-| Task | Description | Depends on |
-|------|-------------|------------|
-| 1 | models.rs structs | — |
-| 2 | providers.rs module | 1 |
-| 3 | ai.rs simplification | — |
-| 4 | commands.rs updates | 1, 2, 3 |
-| 5 | lib.rs registration | 2, 4 |
-| 6 | types.ts updates | — |
-| 7 | settingsStore.ts | 6 |
-| 8 | SettingsSection.tsx | 7 |
-| 9 | AddProviderModal.tsx | 7 |
-| 10 | CSS styles | — |
+| Task | Description          | Depends on |
+| ---- | -------------------- | ---------- |
+| 1    | models.rs structs    | —          |
+| 2    | providers.rs module  | 1          |
+| 3    | ai.rs simplification | —          |
+| 4    | commands.rs updates  | 1, 2, 3    |
+| 5    | lib.rs registration  | 2, 4       |
+| 6    | types.ts updates     | —          |
+| 7    | settingsStore.ts     | 6          |
+| 8    | SettingsSection.tsx  | 7          |
+| 9    | AddProviderModal.tsx | 7          |
+| 10   | CSS styles           | —          |
