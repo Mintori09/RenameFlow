@@ -16,6 +16,7 @@ import "./App.css";
 
 function App() {
   const [view, setView] = useState<View>("home");
+  const [regeneratingIds, setRegeneratingIds] = useState<Set<string>>(new Set());
   const {
     files,
     suggestions,
@@ -87,6 +88,42 @@ function App() {
     }
   }
 
+  async function handleRegenerateFile(fileId: string) {
+    const store = useFileStore.getState();
+    const file = store.files.find((f) => f.id === fileId);
+    if (!file) return;
+
+    setRegeneratingIds((prev) => new Set(prev).add(fileId));
+    try {
+      const result = await invoke<RenameSuggestion[]>("generate_rename_suggestions", {
+        files: [file.path],
+        provider: settings.provider,
+        model: settings.model,
+        baseUrl: settings.baseUrl,
+        prompt: settings.prompt,
+        options: {
+          style: settings.style,
+          max_words: settings.maxWords,
+          language: settings.language,
+        },
+      });
+      if (result.length > 0) {
+        const currentSuggestions = store.suggestions;
+        const updatedSuggestions = Object.values(currentSuggestions).map((s) =>
+          s.fileId === fileId ? result[0] : s
+        );
+        store.setSuggestions(updatedSuggestions);
+      }
+    } catch (err) {
+      setErrorMessage(String(err));
+    }
+    setRegeneratingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(fileId);
+      return next;
+    });
+  }
+
   return (
     <div className="app-layout">
       <Sidebar currentView={view} onNavigate={setView} />
@@ -108,7 +145,7 @@ function App() {
             {errorMessage && <div className="error-banner">{errorMessage}</div>}
             {files.length > 0 && <FileList />}
             {generateStatus === "ready" && Object.keys(suggestions).length > 0 && (
-              <PreviewTable onRename={handleRename} onRegenerateFile={async () => {}} regeneratingIds={new Set()} />
+              <PreviewTable onRename={handleRename} onRegenerateFile={handleRegenerateFile} regeneratingIds={regeneratingIds} />
             )}
           </>
         )}
