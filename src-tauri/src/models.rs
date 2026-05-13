@@ -1,6 +1,12 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GenerateRenameFileInput {
+    pub id: String,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RenameSuggestion {
     pub file_id: String,
     pub original_name: String,
@@ -74,16 +80,20 @@ pub struct DirEntry {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Provider {
     pub name: String,
     pub provider_type: String,
     pub base_url: String,
     pub api_key: String,
-    pub model: String,
+    pub models: Vec<String>,
+    pub active_model: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProviderConfig {
     pub active_provider: String,
     pub providers: Vec<Provider>,
+    pub active_model_id: String,
 }

@@ -3,7 +3,7 @@ use std::collections::HashSet;
 const ILLEGAL_CHARS: &[char] = &['/', '\\', ':', '*', '?', '"', '<', '>', '|'];
 const MAX_BASENAME_LENGTH: usize = 100;
 
-pub fn sanitize_name(name: &str, extension: &str) -> String {
+pub fn sanitize_name(name: &str, extension: &str, style: &str) -> String {
     let cleaned: String = name
         .chars()
         .filter(|c| !ILLEGAL_CHARS.contains(c))
@@ -15,19 +15,65 @@ pub fn sanitize_name(name: &str, extension: &str) -> String {
         return format!("untitled-file{}", extension);
     }
 
-    let basename = if trimmed.len() > MAX_BASENAME_LENGTH {
+    let mut basename = if trimmed.len() > MAX_BASENAME_LENGTH {
         trimmed[..MAX_BASENAME_LENGTH].to_string()
     } else {
         trimmed
     };
 
+    basename = apply_style(&basename, style);
+
     let ext = if extension.starts_with('.') {
         extension.to_string()
+    } else if extension.is_empty() {
+        String::new()
     } else {
         format!(".{}", extension)
     };
 
     format!("{}{}", basename, ext)
+}
+
+pub fn apply_style(name: &str, style: &str) -> String {
+    match style {
+        "snake_case" => name
+            .to_lowercase()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join("_"),
+        "title-case" => name
+            .split_whitespace()
+            .map(|w| {
+                let mut chars = w.chars();
+                match chars.next() {
+                    None => String::new(),
+                    Some(c) => c.to_uppercase().chain(chars).collect(),
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" "),
+        "camelCase" => {
+            let words: Vec<&str> = name.split_whitespace().collect();
+            let mut result = String::new();
+            for (i, word) in words.iter().enumerate() {
+                if i == 0 {
+                    result.push_str(&word.to_lowercase());
+                } else {
+                    let mut chars = word.chars();
+                    if let Some(c) = chars.next() {
+                        result.push(c.to_ascii_uppercase());
+                        result.extend(chars.map(|c| c.to_ascii_lowercase()));
+                    }
+                }
+            }
+            result
+        }
+        _ => name
+            .to_lowercase()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join("-"),
+    }
 }
 
 pub fn deduplicate_name(desired_path: &str, existing_names: &HashSet<String>) -> String {
@@ -69,7 +115,7 @@ mod tests {
 
     #[test]
     fn test_removes_illegal_chars() {
-        let result = sanitize_name("hello:world/test*.jpg", ".jpg");
+        let result = sanitize_name("hello:world/test*.jpg", ".jpg", "kebab-case");
         assert!(!result.contains(':'));
         assert!(!result.contains('/'));
         assert!(!result.contains('*'));
@@ -77,7 +123,7 @@ mod tests {
 
     #[test]
     fn test_empty_name_fallback() {
-        let result = sanitize_name("", ".jpg");
+        let result = sanitize_name("", ".jpg", "kebab-case");
         assert!(result.starts_with("untitled-file"));
         assert!(result.ends_with(".jpg"));
     }
@@ -85,7 +131,7 @@ mod tests {
     #[test]
     fn test_truncates_long_names() {
         let long = "a".repeat(200);
-        let result = sanitize_name(&long, ".txt");
+        let result = sanitize_name(&long, ".txt", "kebab-case");
         assert!(result.len() <= MAX_BASENAME_LENGTH + 5);
     }
 
@@ -102,5 +148,35 @@ mod tests {
         let existing = HashSet::new();
         let result = deduplicate_name("/path/to/sunset.jpg", &existing);
         assert_eq!(result, "/path/to/sunset.jpg");
+    }
+
+    #[test]
+    fn test_apply_style_kebab_case() {
+        let result = apply_style("Hello World Test", "kebab-case");
+        assert_eq!(result, "hello-world-test");
+    }
+
+    #[test]
+    fn test_apply_style_snake_case() {
+        let result = apply_style("Hello World Test", "snake_case");
+        assert_eq!(result, "hello_world_test");
+    }
+
+    #[test]
+    fn test_apply_style_title_case() {
+        let result = apply_style("hello world test", "title-case");
+        assert_eq!(result, "Hello World Test");
+    }
+
+    #[test]
+    fn test_apply_style_camel_case() {
+        let result = apply_style("hello world test", "camelCase");
+        assert_eq!(result, "helloWorldTest");
+    }
+
+    #[test]
+    fn test_sanitize_name_with_style() {
+        let result = sanitize_name("Hello World", ".jpg", "snake_case");
+        assert_eq!(result, "hello_world.jpg");
     }
 }

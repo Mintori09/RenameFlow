@@ -1,5 +1,4 @@
 use crate::models::RenameOperation;
-use std::collections::HashSet;
 use std::path::Path;
 
 pub fn validate_operations(operations: &[RenameOperation]) -> Result<(), String> {
@@ -13,19 +12,6 @@ pub fn validate_operations(operations: &[RenameOperation]) -> Result<(), String>
         }
     }
     Ok(())
-}
-
-pub fn check_conflicts(operations: &[RenameOperation]) -> Vec<String> {
-    let mut to_paths = HashSet::new();
-    let mut conflicts = Vec::new();
-
-    for op in operations {
-        if !to_paths.insert(&op.to_path) {
-            conflicts.push(op.to_path.clone());
-        }
-    }
-
-    conflicts
 }
 
 pub fn execute_rename(op: &RenameOperation) -> Result<(), String> {
