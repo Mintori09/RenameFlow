@@ -1,0 +1,12 @@
+npx lint-staged
+
+STAGED_TS=$(git diff --cached --name-only --diff-filter=ACM | grep -c '\.tsx\?$' || true)
+STAGED_RS=$(git diff --cached --name-only --diff-filter=ACM | grep -c '\.rs$' || true)
+
+if [ "$STAGED_TS" -gt 0 ]; then
+  npx tsc --noEmit
+fi
+
+if [ "$STAGED_RS" -gt 0 ]; then
+  cargo check --manifest-path src-tauri/Cargo.toml
+fi
