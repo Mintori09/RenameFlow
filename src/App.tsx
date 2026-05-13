@@ -20,7 +20,6 @@ function App() {
   const {
     files,
     suggestions,
-    selectedIds,
     generateStatus,
     errorMessage,
     addFiles,
