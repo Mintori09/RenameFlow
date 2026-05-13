@@ -1,4 +1,5 @@
 use crate::models::{Provider, ProviderConfig};
+use tauri::Manager;
 
 fn get_providers_file_path(app_handle: &tauri::AppHandle) -> std::path::PathBuf {
     let mut path = app_handle
