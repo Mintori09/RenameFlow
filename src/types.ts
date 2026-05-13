@@ -48,7 +48,7 @@ export type UndoResult = {
   failed: number;
 };
 
-export type ProviderType = "ollama" | "lm-studio";
+export type ProviderType = "openai-compatible" | "anthropic" | "google";
 
 export type FilenameStyle = "kebab-case" | "snake_case" | "title-case" | "camelCase";
 
@@ -58,6 +58,7 @@ export type AppSettings = {
   provider: ProviderType;
   model: string;
   baseUrl: string;
+  apiKey: string;
   prompt: string;
   style: FilenameStyle;
   maxWords: number;
@@ -67,4 +68,24 @@ export type AppSettings = {
 export type ModelInfo = {
   name: string;
   label?: string;
+};
+
+export type DirEntry = {
+  name: string;
+  path: string;
+  is_dir: boolean;
+  size: number;
+};
+
+export type Provider = {
+  name: string;
+  providerType: ProviderType;
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+};
+
+export type ProviderConfig = {
+  activeProvider: string;
+  providers: Provider[];
 };
