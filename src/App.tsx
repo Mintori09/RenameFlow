@@ -1,126 +1,54 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sidebar } from "./components/Sidebar";
-import { DropZone } from "./components/DropZone";
-import { ConfigBar } from "./components/ConfigBar";
-import { PromptField } from "./components/PromptField";
-import { FileList } from "./components/FileList";
+import { ControlBar } from "./components/ControlBar";
+import { FileBrowser } from "./components/FileBrowser";
 import { PreviewTable } from "./components/PreviewTable";
 import { HistorySection } from "./components/HistorySection";
 import { SettingsSection } from "./components/SettingsSection";
 import { useFileStore } from "./stores/fileStore";
+import { useWorkflowStore } from "./stores/workflowStore";
 import { useSettingsStore } from "./stores/settingsStore";
 import { invoke } from "@tauri-apps/api/core";
+import type { ProviderConfig } from "./types";
 import type { View } from "./views";
-import type { RenameSuggestion, RenameOperation, RenameResult } from "./types";
 import "./App.css";
 
 function App() {
   const [view, setView] = useState<View>("home");
-  const [regeneratingIds, setRegeneratingIds] = useState<Set<string>>(new Set());
+  const files = useFileStore((s) => s.files);
+  const suggestions = useFileStore((s) => s.suggestions);
+  const generateStatus = useFileStore((s) => s.generateStatus);
+  const errorMessage = useFileStore((s) => s.errorMessage);
   const {
-    files,
-    suggestions,
-    generateStatus,
-    errorMessage,
-    addFiles,
-    setSuggestions,
-    setGenerateStatus,
-    setErrorMessage,
-  } = useFileStore();
-  const settings = useSettingsStore();
+    loadHistory,
+    generateAllSuggestions,
+    renameSelectedFiles,
+    regenerateSuggestion,
+    regeneratingIds,
+  } = useWorkflowStore();
+  const renaming = useWorkflowStore((s) => s.renaming);
 
-  async function handleGenerate() {
-    if (files.length === 0) return;
-    setGenerateStatus("generating");
-    setErrorMessage(null);
+  useEffect(() => {
+    loadHistory();
+    (async () => {
+      try {
+        const config = await invoke<ProviderConfig>("load_providers");
+        useSettingsStore.getState().loadProviders(config);
+      } catch {
+        // defaults apply
+      }
+    })();
+  }, []);
 
-    try {
-      const result = await invoke<RenameSuggestion[]>("generate_rename_suggestions", {
-        files: files.map((f) => f.path),
-        provider: settings.provider,
-        model: settings.model,
-        baseUrl: settings.baseUrl,
-        prompt: settings.prompt,
-        options: {
-          style: settings.style,
-          max_words: settings.maxWords,
-          language: settings.language,
-        },
-      });
-      setSuggestions(result);
-    } catch (err) {
-      setErrorMessage(String(err));
-      setGenerateStatus("error");
-    }
-  }
+  const hasFiles = files.length > 0;
+  const hasSuggestions =
+    generateStatus === "ready" && Object.keys(suggestions).length > 0;
+  const selectedCount = [...useFileStore.getState().selectedIds].filter(
+    (id) => suggestions[id],
+  ).length;
 
   async function handleRename() {
-    const store = useFileStore.getState();
-    const ops: RenameOperation[] = [];
-    for (const fileId of store.selectedIds) {
-      const file = store.files.find((f) => f.id === fileId);
-      const s = store.suggestions[fileId];
-      if (!file || !s) continue;
-      const newPath = file.directory
-        ? `${file.directory}/${s.finalName}`
-        : s.finalName;
-      ops.push({
-        fileId: file.id,
-        fromPath: file.path,
-        toPath: newPath,
-        originalName: file.originalName,
-        newName: s.finalName,
-      });
-    }
-    if (ops.length === 0) return;
-
-    try {
-      const result = await invoke<RenameResult>("rename_files", { operations: ops });
-      for (const op of result.success) {
-        store.updateFileStatus(op.fileId, "renamed");
-      }
-      for (const op of result.failed) {
-        store.updateFileStatus(op.operation.fileId, "failed", op.error);
-      }
-    } catch (err) {
-      setErrorMessage(String(err));
-    }
-  }
-
-  async function handleRegenerateFile(fileId: string) {
-    const store = useFileStore.getState();
-    const file = store.files.find((f) => f.id === fileId);
-    if (!file) return;
-
-    setRegeneratingIds((prev) => new Set(prev).add(fileId));
-    try {
-      const result = await invoke<RenameSuggestion[]>("generate_rename_suggestions", {
-        files: [file.path],
-        provider: settings.provider,
-        model: settings.model,
-        baseUrl: settings.baseUrl,
-        prompt: settings.prompt,
-        options: {
-          style: settings.style,
-          max_words: settings.maxWords,
-          language: settings.language,
-        },
-      });
-      if (result.length > 0) {
-        const currentSuggestions = store.suggestions;
-        const updatedSuggestions = Object.values(currentSuggestions).map((s) =>
-          s.fileId === fileId ? result[0] : s
-        );
-        store.setSuggestions(updatedSuggestions);
-      }
-    } catch (err) {
-      setErrorMessage(String(err));
-    }
-    setRegeneratingIds((prev) => {
-      const next = new Set(prev);
-      next.delete(fileId);
-      return next;
-    });
+    await renameSelectedFiles();
   }
 
   return (
@@ -129,27 +57,59 @@ function App() {
       <main className="main-content">
         {view === "home" && (
           <>
-            <DropZone onFilesSelected={addFiles} />
-            <ConfigBar />
-            <PromptField />
-            <div className="action-bar">
-              <button
-                className="btn btn-primary"
-                onClick={handleGenerate}
-                disabled={files.length === 0 || generateStatus === "generating"}
-              >
-                {generateStatus === "generating" ? "Generating..." : "Generate Names"}
-              </button>
+            <div className="top-card">
+              <div className="breadcrumb">
+                <div className="crumb">
+                  <span>Home</span>
+                  <span>/</span>
+                  <span>Rename</span>
+                </div>
+                <div className="top-actions">
+                  {hasSuggestions && (
+                    <button className="btn" onClick={generateAllSuggestions}>
+                      ⟳ Regenerate All
+                    </button>
+                  )}
+                  <button
+                    className="btn primary"
+                    onClick={
+                      hasSuggestions ? handleRename : generateAllSuggestions
+                    }
+                    disabled={
+                      generateStatus === "generating" ||
+                      renaming ||
+                      (hasSuggestions && selectedCount === 0)
+                    }
+                  >
+                    {generateStatus === "generating"
+                      ? "Generating..."
+                      : renaming
+                        ? "Renaming..."
+                        : hasSuggestions
+                          ? `⟳ Rename Selected (${selectedCount})`
+                          : "Generate Names"}
+                  </button>
+                </div>
+              </div>
+              <ControlBar />
             </div>
+
             {errorMessage && <div className="error-banner">{errorMessage}</div>}
-            {files.length > 0 && <FileList />}
-            {generateStatus === "ready" && Object.keys(suggestions).length > 0 && (
-              <PreviewTable onRename={handleRename} onRegenerateFile={handleRegenerateFile} regeneratingIds={regeneratingIds} />
-            )}
           </>
         )}
-        {view === "history" && <HistorySection />}
-        {view === "settings" && <SettingsSection />}
+        <div className={`content-body ${view === 'home' && hasFiles ? 'content-grid' : ''} ${view === 'home' && hasSuggestions ? 'content-split' : ''}`}>
+          <div className={view !== 'home' ? 'browser-hidden' : ''}>
+            <FileBrowser />
+          </div>
+          {view === "home" && hasSuggestions && (
+            <PreviewTable
+              onRegenerateFile={regenerateSuggestion}
+              regeneratingIds={regeneratingIds}
+            />
+          )}
+          {view === "history" && <HistorySection />}
+          {view === "settings" && <SettingsSection />}
+        </div>
       </main>
     </div>
   );

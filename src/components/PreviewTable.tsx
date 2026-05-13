@@ -1,95 +1,170 @@
 import { useFileStore } from "../stores/fileStore";
 
 type PreviewTableProps = {
-  onRename: () => void;
   onRegenerateFile: (fileId: string) => void;
   regeneratingIds: Set<string>;
 };
 
-export function PreviewTable({ onRename, onRegenerateFile, regeneratingIds }: PreviewTableProps) {
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "—";
+  const units = ["B", "KB", "MB", "GB"];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit++;
+  }
+  return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
+}
+
+function getThumbnailContent(file: {
+  mimeType?: string;
+  originalName: string;
+  extension: string;
+}) {
+  const isVideo =
+    file.mimeType?.startsWith("video/") ||
+    /\.(mp4|mov|avi|mkv)$/i.test(file.extension);
+  const isImage =
+    file.mimeType?.startsWith("image/") ||
+    /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(file.extension);
+
+  if (isImage) {
+    return <div className="thumb">🖼</div>;
+  }
+  if (isVideo) {
+    return (
+      <div className="thumb">
+        🎬
+        <span className="play-overlay">▶</span>
+      </div>
+    );
+  }
+  const ext = file.extension.toLowerCase();
+  if (ext === ".pdf") return <div className="thumb">📄</div>;
+  if (ext === ".docx" || ext === ".doc") return <div className="thumb">📝</div>;
+  if (ext === ".xlsx" || ext === ".xls") return <div className="thumb">📗</div>;
+  return <div className="thumb">📁</div>;
+}
+
+export function PreviewTable({
+  onRegenerateFile,
+  regeneratingIds,
+}: PreviewTableProps) {
   const files = useFileStore((s) => s.files);
   const suggestions = useFileStore((s) => s.suggestions);
   const selectedIds = useFileStore((s) => s.selectedIds);
   const updateSuggestion = useFileStore((s) => s.updateSuggestion);
   const toggleFile = useFileStore((s) => s.toggleFile);
-  const deselectAll = useFileStore((s) => s.deselectAll);
 
-  const previewItems = files
-    .filter((f) => suggestions[f.id])
-    .map((f) => ({
-      file: f,
-      suggestion: suggestions[f.id],
-    }));
+  const previewItems = Object.values(suggestions).map((suggestion) => {
+    const file = files.find((f) => f.id === suggestion.fileId);
+    return {
+      file: file ?? {
+        id: suggestion.fileId,
+        path: "",
+        directory: "",
+        originalName: suggestion.originalName,
+        extension: "",
+        size: 0,
+        status: "pending" as const,
+      },
+      suggestion,
+    };
+  });
 
   if (previewItems.length === 0) return null;
 
   const selectedCount = [...selectedIds].filter((id) => suggestions[id]).length;
 
   return (
-    <div className="preview-table">
-      <div className="preview-header">
-        <h3 className="section-title">
-          Preview ({previewItems.length} files)
-        </h3>
-        <div className="preview-actions">
-          <button className="btn btn-secondary btn-sm" onClick={deselectAll}>
-            Deselect All
-          </button>
+    <div className="table-card">
+      <table className="file-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Preview</th>
+            <th>Current Name</th>
+            <th>Suggested Name</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {previewItems.map(({ file, suggestion }) => (
+            <tr key={file.id}>
+              <td>
+                <input
+                  type="checkbox"
+                  className="table-checkbox"
+                  checked={selectedIds.has(file.id)}
+                  onChange={() => toggleFile(file.id)}
+                />
+              </td>
+              <td>{getThumbnailContent(file)}</td>
+              <td>
+                <div
+                  className="file-name"
+                  title={file.originalName + file.extension}
+                >
+                  {file.originalName}
+                  {file.extension}
+                </div>
+                <div className="file-size">{formatBytes(file.size)}</div>
+              </td>
+              <td>
+                <input
+                  className="suggested"
+                  type="text"
+                  value={suggestion.finalName}
+                  onChange={(e) => updateSuggestion(file.id, e.target.value)}
+                />
+              </td>
+              <td>
+                <span
+                  className={`status-pill ${file.status === "pending" ? "pending" : file.status === "failed" ? "failed" : file.status === "renamed" ? "skipped" : ""}`}
+                >
+                  {file.status === "ready" || file.status === "pending"
+                    ? "Ready"
+                    : file.status === "renamed"
+                      ? "Renamed"
+                      : file.status === "failed"
+                        ? "Failed"
+                        : file.status}
+                </span>
+              </td>
+              <td>
+                <div className="actions-cell">
+                  <button
+                    onClick={() => onRegenerateFile(file.id)}
+                    disabled={regeneratingIds.has(file.id)}
+                    title="Regenerate"
+                  >
+                    {regeneratingIds.has(file.id) ? "⏳" : "⟳"}
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="footer-row">
+        <div className="footer-left">
+          <span>
+            {selectedCount} of {previewItems.length} files selected
+          </span>
+          <span>
+            {formatBytes(files.reduce((sum, f) => sum + f.size, 0))} total
+          </span>
+        </div>
+        <div className="footer-right">
           <button
-            className="btn btn-primary"
-            onClick={onRename}
-            disabled={selectedCount === 0}
+            className="clear-btn"
+            onClick={() => useFileStore.getState().clearAll()}
           >
-            Rename Selected ({selectedCount})
+            Clear All
           </button>
         </div>
-      </div>
-      <div className="preview-grid">
-        <div className="preview-grid-header">
-          <span className="preview-col-check"></span>
-          <span className="preview-col-current">Current Name</span>
-          <span className="preview-col-new">New Name</span>
-          <span className="preview-col-status">Status</span>
-          <span className="preview-col-action"></span>
-        </div>
-        {previewItems.map(({ file, suggestion }) => (
-          <div key={file.id} className="preview-row">
-            <span className="preview-col-check">
-              <input
-                type="checkbox"
-                checked={selectedIds.has(file.id)}
-                onChange={() => toggleFile(file.id)}
-              />
-            </span>
-            <span className="preview-col-current" title={file.path}>
-              {file.originalName}{file.extension}
-            </span>
-            <span className="preview-col-new">
-              <input
-                className="preview-input"
-                type="text"
-                value={suggestion.finalName}
-                onChange={(e) => updateSuggestion(file.id, e.target.value)}
-              />
-            </span>
-            <span className="preview-col-status">
-              <span className={`status-badge status-${file.status}`}>
-                {file.status === "ready" || file.status === "pending"
-                  ? "Ready"
-                  : file.status}
-              </span>
-            </span>
-            <span className="preview-col-action">
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={() => onRegenerateFile(file.id)}
-                disabled={regeneratingIds.has(file.id)}
-              >
-                {regeneratingIds.has(file.id) ? "..." : "Regenerate"}
-              </button>
-            </span>
-          </div>
-        ))}
       </div>
     </div>
   );

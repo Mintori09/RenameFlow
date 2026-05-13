@@ -10,7 +10,7 @@ import type {
 } from "../types";
 
 const DEFAULT_SETTINGS: AppSettings = {
-  provider: "openai-compatible" as ProviderType,
+  provider: "ollama" as ProviderType,
   model: "",
   baseUrl: "http://localhost:11434",
   apiKey: "",
@@ -23,35 +23,43 @@ const DEFAULT_SETTINGS: AppSettings = {
 
 type SettingsStore = AppSettings & {
   providers: Provider[];
-  activeProviderName: string;
+  activeModelId: string;
   updateSettings: (partial: Partial<AppSettings>) => void;
   resetSettings: () => void;
   loadProviders: (config: ProviderConfig) => void;
   addProvider: (provider: Provider) => void;
   removeProvider: (name: string) => void;
-  switchProvider: (name: string) => void;
+  addModelToProvider: (providerName: string, modelName: string) => void;
+  removeModelFromProvider: (providerName: string, modelName: string) => void;
+  setActiveModel: (modelId: string) => void;
   persistProviders: () => Promise<void>;
 };
 
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
   ...DEFAULT_SETTINGS,
   providers: [],
-  activeProviderName: "",
+  activeModelId: "",
 
   updateSettings: (partial) => set(partial),
 
   resetSettings: () => set(DEFAULT_SETTINGS),
 
   loadProviders: (config: ProviderConfig) => {
-    set({ providers: config.providers, activeProviderName: config.activeProvider });
-    const active = config.providers.find((p) => p.name === config.activeProvider);
-    if (active) {
-      set({
-        provider: active.providerType,
-        model: active.model,
-        baseUrl: active.baseUrl,
-        apiKey: active.apiKey,
-      });
+    set({
+      providers: config.providers,
+      activeModelId: config.activeModelId,
+    });
+    if (config.activeModelId) {
+      const [providerName, modelName] = config.activeModelId.split("::");
+      const provider = config.providers.find((p) => p.name === providerName);
+      if (provider && modelName) {
+        set({
+          provider: provider.providerType,
+          model: modelName,
+          baseUrl: provider.baseUrl,
+          apiKey: provider.apiKey,
+        });
+      }
     }
   },
 
@@ -64,43 +72,63 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   removeProvider: (name: string) => {
     const state = get();
     const remaining = state.providers.filter((p) => p.name !== name);
-    let newActive = state.activeProviderName;
-    if (name === state.activeProviderName) {
-      const first = remaining[0];
-      if (first) {
-        newActive = first.name;
-        set({
-          provider: first.providerType,
-          model: first.model,
-          baseUrl: first.baseUrl,
-          apiKey: first.apiKey,
-        });
-      } else {
-        newActive = "";
-      }
+    let newId = state.activeModelId;
+    if (state.activeModelId.startsWith(name + "::")) {
+      newId = "";
     }
-    set({ providers: remaining, activeProviderName: newActive });
+    set({ providers: remaining, activeModelId: newId });
   },
 
-  switchProvider: (name: string) => {
+  addModelToProvider: (providerName: string, modelName: string) => {
+    set((state) => ({
+      providers: state.providers.map((p) =>
+        p.name === providerName && !p.models.includes(modelName)
+          ? { ...p, models: [...p.models, modelName] }
+          : p,
+      ),
+    }));
+  },
+
+  removeModelFromProvider: (providerName: string, modelName: string) => {
     const state = get();
-    const provider = state.providers.find((p) => p.name === name);
-    if (provider) {
-      set({
-        activeProviderName: name,
-        provider: provider.providerType,
-        model: provider.model,
-        baseUrl: provider.baseUrl,
-        apiKey: provider.apiKey,
-      });
+    const provider = state.providers.find((p) => p.name === providerName);
+    if (!provider) return;
+
+    const remaining = provider.models.filter((m) => m !== modelName);
+    let newModelId = state.activeModelId;
+    if (state.activeModelId === `${providerName}::${modelName}`) {
+      newModelId =
+        remaining.length > 0 ? `${providerName}::${remaining[0]}` : "";
     }
+
+    set({
+      providers: state.providers.map((p) =>
+        p.name === providerName ? { ...p, models: remaining } : p,
+      ),
+      activeModelId: newModelId,
+    });
+  },
+
+  setActiveModel: (modelId: string) => {
+    const [providerName, modelName] = modelId.split("::");
+    const provider = get().providers.find((p) => p.name === providerName);
+    if (!provider || !modelName) return;
+
+    set({
+      activeModelId: modelId,
+      provider: provider.providerType,
+      model: modelName,
+      baseUrl: provider.baseUrl,
+      apiKey: provider.apiKey,
+    });
   },
 
   persistProviders: async () => {
     const state = get();
     const config: ProviderConfig = {
-      activeProvider: state.activeProviderName,
+      activeProvider: state.activeModelId.split("::")[0] || "",
       providers: state.providers,
+      activeModelId: state.activeModelId,
     };
     try {
       await invoke("save_providers", { config });

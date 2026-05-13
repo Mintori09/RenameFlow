@@ -48,7 +48,7 @@ export type UndoResult = {
   failed: number;
 };
 
-export type ProviderType = "openai-compatible" | "anthropic" | "google";
+export type ProviderType = "openai-compatible" | "anthropic" | "google" | "ollama";
 
 export type FilenameStyle = "kebab-case" | "snake_case" | "title-case" | "camelCase";
 
@@ -82,10 +82,12 @@ export type Provider = {
   providerType: ProviderType;
   baseUrl: string;
   apiKey: string;
-  model: string;
+  models: string[];
+  activeModel: string;
 };
 
 export type ProviderConfig = {
   activeProvider: string;
   providers: Provider[];
+  activeModelId: string;
 };

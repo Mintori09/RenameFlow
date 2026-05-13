@@ -5,7 +5,7 @@ export function HistorySection() {
 
   return (
     <div className="section">
-      <h2 className="section-title">History</h2>
+      <h2>History</h2>
       {entries.length === 0 ? (
         <p className="empty-state">No rename history yet.</p>
       ) : (
@@ -14,9 +14,7 @@ export function HistorySection() {
             <div key={entry.id} className="history-item">
               <span>{entry.createdAt}</span>
               <span>{entry.successCount} renamed</span>
-              {entry.failedCount > 0 && (
-                <span className="status-failed">{entry.failedCount} failed</span>
-              )}
+              {entry.failedCount > 0 && <span>{entry.failedCount} failed</span>}
             </div>
           ))}
         </div>

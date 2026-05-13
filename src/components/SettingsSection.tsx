@@ -11,10 +11,7 @@ export function SettingsSection() {
   useEffect(() => {
     async function init() {
       try {
-        const [config, _path] = await Promise.all([
-          invoke<ProviderConfig>("load_providers"),
-          invoke<string>("get_providers_path"),
-        ]);
+        const config = await invoke<ProviderConfig>("load_providers");
         settings.loadProviders(config);
       } catch {
         // defaults apply
@@ -28,9 +25,35 @@ export function SettingsSection() {
     await settings.persistProviders();
   }
 
-  async function handleSwitch(name: string) {
-    settings.switchProvider(name);
+  async function handleAddModel(providerName: string) {
+    const modelName = prompt(`Add model to "${providerName}":`);
+    if (!modelName?.trim()) return;
+    settings.addModelToProvider(providerName, modelName.trim());
     await settings.persistProviders();
+  }
+
+  async function handleRemoveModel(
+    providerName: string,
+    modelName: string,
+  ) {
+    if (
+      !confirm(`Remove model "${modelName}" from "${providerName}"?`)
+    )
+      return;
+    settings.removeModelFromProvider(providerName, modelName);
+    await settings.persistProviders();
+  }
+
+  async function handleFetchOllamaModels(providerName: string) {
+    try {
+      const models = await invoke<string[]>("get_ollama_models");
+      for (const m of models) {
+        settings.addModelToProvider(providerName, m);
+      }
+      await settings.persistProviders();
+    } catch (err) {
+      alert(`Failed to fetch Ollama models: ${err}`);
+    }
   }
 
   return (
@@ -38,32 +61,18 @@ export function SettingsSection() {
       <h2 className="section-title">Settings</h2>
       <div className="settings-form">
         <div className="config-group">
-          <label className="config-label">Active Provider</label>
-          <select
-            className="config-select"
-            value={settings.activeProviderName}
-            onChange={(e) => handleSwitch(e.target.value)}
-          >
-            {settings.providers.length === 0 && (
-              <option value="">No providers</option>
-            )}
-            {settings.providers.map((p) => (
-              <option key={p.name} value={p.name}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="config-group">
           <label className="config-label">Providers</label>
           <div className="provider-list">
             {settings.providers.map((p) => (
-              <div key={p.name} className="provider-item">
+              <div key={p.name} className="provider-item provider-card">
                 <div className="provider-item-info">
                   <span className="provider-item-name">{p.name}</span>
-                  <span className="provider-item-type">{p.providerType}</span>
-                  <span className="provider-item-model">{p.model || "no model"}</span>
+                  <span className="provider-item-type">
+                    {p.providerType}
+                  </span>
+                  {settings.activeModelId.startsWith(p.name + "::") && (
+                    <span className="provider-item-active">(active)</span>
+                  )}
                 </div>
                 <button
                   className="provider-item-remove"
@@ -72,6 +81,49 @@ export function SettingsSection() {
                 >
                   &minus;
                 </button>
+                <div className="provider-models">
+                  {p.models.length === 0 && (
+                    <span className="no-models">
+                      No models configured.
+                    </span>
+                  )}
+                  {p.models.map((m) => (
+                    <div key={m} className="model-chip">
+                      <span
+                        className={
+                          settings.activeModelId === `${p.name}::${m}`
+                            ? "model-chip-active"
+                            : ""
+                        }
+                      >
+                        {m}
+                      </span>
+                      <button
+                        className="model-chip-remove"
+                        onClick={() => handleRemoveModel(p.name, m)}
+                        title="Remove model"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="provider-actions">
+                  <button
+                    className="provider-add-model-btn"
+                    onClick={() => handleAddModel(p.name)}
+                  >
+                    + Add Model
+                  </button>
+                  {p.providerType === "ollama" && (
+                    <button
+                      className="provider-fetch-btn"
+                      onClick={() => handleFetchOllamaModels(p.name)}
+                    >
+                      Fetch from Ollama
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>

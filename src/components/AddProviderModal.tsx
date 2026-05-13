@@ -6,12 +6,14 @@ const DEFAULT_BASE_URLS: Record<ProviderType, string> = {
   "openai-compatible": "http://localhost:11434",
   anthropic: "https://api.anthropic.com",
   google: "https://generativelanguage.googleapis.com",
+  ollama: "http://localhost:11434",
 };
 
 const AUTH_REQUIRED: Record<ProviderType, boolean> = {
   "openai-compatible": false,
   anthropic: true,
   google: true,
+  ollama: false,
 };
 
 type Props = {
@@ -20,33 +22,40 @@ type Props = {
 };
 
 export function AddProviderModal({ onClose, onAdded }: Props) {
-  const { addProvider, persistProviders, switchProvider } =
+  const { addProvider, persistProviders, setActiveModel } =
     useSettingsStore();
   const [name, setName] = useState("");
-  const [providerType, setProviderType] = useState<ProviderType>("openai-compatible");
-  const [baseUrl, setBaseUrl] = useState(DEFAULT_BASE_URLS["openai-compatible"]);
+  const [providerType, setProviderType] =
+    useState<ProviderType>("ollama");
+  const [baseUrl, setBaseUrl] = useState(DEFAULT_BASE_URLS["ollama"]);
   const [apiKey, setApiKey] = useState("");
-  const [model, setModel] = useState("");
+  const [modelsInput, setModelsInput] = useState("");
 
   function handleTypeChange(type: string) {
     const t = type as ProviderType;
     setProviderType(t);
-    if (!baseUrl || baseUrl === DEFAULT_BASE_URLS[providerType]) {
-      setBaseUrl(DEFAULT_BASE_URLS[t]);
-    }
+    setBaseUrl(DEFAULT_BASE_URLS[t]);
   }
 
   async function handleSubmit() {
     if (!name.trim()) return;
+    const modelList = modelsInput
+      .split(",")
+      .map((m) => m.trim())
+      .filter(Boolean);
+    const firstModel = modelList[0] || "";
     const provider: Provider = {
       name: name.trim(),
       providerType,
       baseUrl: baseUrl.trim(),
       apiKey,
-      model: model.trim(),
+      models: modelList,
+      activeModel: firstModel,
     };
     addProvider(provider);
-    switchProvider(provider.name);
+    if (firstModel) {
+      setActiveModel(`${provider.name}::${firstModel}`);
+    }
     await persistProviders();
     onAdded();
   }
@@ -74,6 +83,7 @@ export function AddProviderModal({ onClose, onAdded }: Props) {
             value={providerType}
             onChange={(e) => handleTypeChange(e.target.value)}
           >
+            <option value="ollama">Ollama</option>
             <option value="openai-compatible">OpenAI Compatible</option>
             <option value="anthropic">Anthropic</option>
             <option value="google">Google</option>
@@ -104,13 +114,13 @@ export function AddProviderModal({ onClose, onAdded }: Props) {
         )}
 
         <div className="modal-field">
-          <label className="config-label">Model</label>
+          <label className="config-label">Models</label>
           <input
             className="config-input"
             type="text"
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            placeholder="e.g. llama3.2, gpt-4o"
+            value={modelsInput}
+            onChange={(e) => setModelsInput(e.target.value)}
+            placeholder="llama3.2, mistral, codellama (comma-separated)"
           />
         </div>
 

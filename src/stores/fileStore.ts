@@ -11,6 +11,7 @@ type FileStore = {
   errorMessage: string | null;
   addFiles: (paths: string[]) => void;
   removeFile: (id: string) => void;
+  removeFilesByPaths: (paths: string[]) => void;
   clearAll: () => void;
   updateSuggestion: (fileId: string, newName: string) => void;
   setSuggestions: (suggestions: RenameSuggestion[]) => void;
@@ -49,29 +50,69 @@ export const useFileStore = create<FileStore>((set) => ({
       return { files: [...state.files, ...newFiles] };
     }),
   removeFile: (id) =>
-    set((state) => ({
-      files: state.files.filter((f) => f.id !== id),
-      selectedIds: new Set([...state.selectedIds].filter((sid) => sid !== id)),
-    })),
+    set((state) => {
+      const newSuggestions = { ...state.suggestions };
+      delete newSuggestions[id];
+      return {
+        files: state.files.filter((f) => f.id !== id),
+        selectedIds: new Set(
+          [...state.selectedIds].filter((sid) => sid !== id),
+        ),
+        suggestions: newSuggestions,
+      };
+    }),
+  removeFilesByPaths: (paths: string[]) =>
+    set((state) => {
+      const pathSet = new Set(paths);
+      const removedIds = new Set(
+        state.files.filter((f) => pathSet.has(f.path)).map((f) => f.id),
+      );
+      const newSuggestions = { ...state.suggestions };
+      for (const id of removedIds) {
+        delete newSuggestions[id];
+      }
+      return {
+        files: state.files.filter((f) => !pathSet.has(f.path)),
+        selectedIds: new Set(
+          [...state.selectedIds].filter((id) => !removedIds.has(id)),
+        ),
+        suggestions: newSuggestions,
+      };
+    }),
   clearAll: () =>
-    set({ files: [], suggestions: {}, selectedIds: new Set(), generateStatus: "idle", errorMessage: null }),
+    set({
+      files: [],
+      suggestions: {},
+      selectedIds: new Set(),
+      generateStatus: "idle",
+      errorMessage: null,
+    }),
   updateSuggestion: (fileId, newName) =>
     set((state) => {
       const s = state.suggestions[fileId];
       if (!s) return state;
-      return { suggestions: { ...state.suggestions, [fileId]: { ...s, finalName: newName } } };
+      return {
+        suggestions: {
+          ...state.suggestions,
+          [fileId]: { ...s, finalName: newName },
+        },
+      };
     }),
   setSuggestions: (suggestions) =>
     set(() => {
       const map: Record<string, RenameSuggestion> = {};
       const selectedIds = new Set<string>();
-      for (const s of suggestions) { map[s.fileId] = s; selectedIds.add(s.fileId); }
+      for (const s of suggestions) {
+        map[s.fileId] = s;
+        selectedIds.add(s.fileId);
+      }
       return { suggestions: map, selectedIds, generateStatus: "ready" };
     }),
   toggleFile: (id) =>
     set((state) => {
       const next = new Set(state.selectedIds);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return { selectedIds: next };
     }),
   selectAll: () =>
@@ -81,6 +122,8 @@ export const useFileStore = create<FileStore>((set) => ({
   setErrorMessage: (msg) => set({ errorMessage: msg }),
   updateFileStatus: (id, status, error) =>
     set((state) => ({
-      files: state.files.map((f) => (f.id === id ? { ...f, status, error } : f)),
+      files: state.files.map((f) =>
+        f.id === id ? { ...f, status, error } : f,
+      ),
     })),
 }));

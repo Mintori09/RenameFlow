@@ -2,6 +2,7 @@ import type { View } from "../views";
 import { useFileStore } from "../stores/fileStore";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useHistoryStore } from "../stores/historyStore";
+import { useWorkflowStore } from "../stores/workflowStore";
 
 type SidebarProps = {
   currentView: View;
@@ -12,6 +13,7 @@ export function Sidebar({ currentView, onNavigate }: SidebarProps) {
   const files = useFileStore((s) => s.files);
   const settings = useSettingsStore();
   const historyEntries = useHistoryStore((s) => s.entries);
+  const undoLastRename = useWorkflowStore((s) => s.undoLastRename);
 
   const navItems = [
     {
@@ -128,7 +130,7 @@ export function Sidebar({ currentView, onNavigate }: SidebarProps) {
                   {entry.successCount} file{entry.successCount !== 1 ? "s" : ""}
                 </small>
               </div>
-              <button className="undo">Undo</button>
+              <button className="undo" onClick={() => undoLastRename()}>Undo</button>
             </div>
           ))}
         </section>
@@ -137,7 +139,7 @@ export function Sidebar({ currentView, onNavigate }: SidebarProps) {
       <div className="connection">
         <div>
           <strong><span className="green-dot"></span>Connected</strong>
-          <small>{settings.activeProviderName || "No provider"} · {settings.baseUrl}</small>
+          <small>{settings.activeModelId ? settings.activeModelId.replace("::", " · ") : "No model selected"}</small>
         </div>
         <button className="btn" style={{ width: "30px", padding: 0, justifyContent: "center" }}>⋮</button>
       </div>
