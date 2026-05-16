@@ -44,51 +44,53 @@ export function SettingsSection() {
           />
         </div>
 
-        <div className="config-group">
-          <label className="config-label">Filename Style</label>
-          <select
-            className="config-select"
-            value={style}
-            onChange={(e) =>
-              updateSettings({ style: e.target.value as any })
-            }
-          >
-            <option value="kebab-case">kebab-case</option>
-            <option value="snake_case">snake_case</option>
-            <option value="title-case">Title Case</option>
-            <option value="camelCase">camelCase</option>
-          </select>
-        </div>
+        <div className="settings-compact-row">
+          <div className="config-group">
+            <label className="config-label">Filename Style</label>
+            <select
+              className="config-select"
+              value={style}
+              onChange={(e) =>
+                updateSettings({ style: e.target.value as any })
+              }
+            >
+              <option value="kebab-case">kebab-case</option>
+              <option value="snake_case">snake_case</option>
+              <option value="title-case">Title Case</option>
+              <option value="camelCase">camelCase</option>
+            </select>
+          </div>
 
-        <div className="config-group">
-          <label className="config-label">Max Words</label>
-          <input
-            className="config-input"
-            type="number"
-            value={maxWords}
-            onChange={(e) =>
-              updateSettings({
-                maxWords: parseInt(e.target.value) || 8,
-              })
-            }
-            min={1}
-            max={20}
-          />
-        </div>
+          <div className="config-group">
+            <label className="config-label">Max Words</label>
+            <input
+              className="config-input"
+              type="number"
+              value={maxWords}
+              onChange={(e) =>
+                updateSettings({
+                  maxWords: parseInt(e.target.value) || 8,
+                })
+              }
+              min={1}
+              max={20}
+            />
+          </div>
 
-        <div className="config-group">
-          <label className="config-label">Language</label>
-          <select
-            className="config-select"
-            value={language}
-            onChange={(e) =>
-              updateSettings({ language: e.target.value as any })
-            }
-          >
-            <option value="english">English</option>
-            <option value="vietnamese">Vietnamese</option>
-            <option value="auto">Auto</option>
-          </select>
+          <div className="config-group">
+            <label className="config-label">Language</label>
+            <select
+              className="config-select"
+              value={language}
+              onChange={(e) =>
+                updateSettings({ language: e.target.value as any })
+              }
+            >
+              <option value="english">English</option>
+              <option value="vietnamese">Vietnamese</option>
+              <option value="auto">Auto</option>
+            </select>
+          </div>
         </div>
       </div>
     </div>

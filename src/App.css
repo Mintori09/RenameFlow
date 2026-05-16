@@ -1247,6 +1247,17 @@ body {
   border-color: var(--color-accent);
 }
 
+.settings-compact-row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.settings-compact-row .config-group {
+  flex: 1;
+  min-width: 110px;
+}
+
 /* ===== Provider List ===== */
 .provider-list {
   display: flex;
