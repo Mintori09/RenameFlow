@@ -2,10 +2,11 @@ use crate::ai;
 use crate::domain::rename_plan::build_options_system_prompt;
 use crate::models::{
     GenerateRenameFileInput, RenameHistory, RenameOperation, RenameOptions, RenameResult,
-    RenameSuggestion, UndoResult,
+    RenameSuggestion,
 };
 use std::collections::HashSet;
 use std::path::Path;
+use uuid::Uuid;
 
 #[tauri::command]
 pub async fn generate_rename_suggestions(
@@ -27,6 +28,12 @@ pub async fn generate_rename_suggestions(
         return Err("Prompt cannot be empty.".to_string());
     }
 
+    let api_key = if api_key.is_empty() {
+        crate::providers::resolve_api_key(&provider, &base_url)
+    } else {
+        api_key
+    };
+
     let mut suggestions = Vec::new();
     let mut seen_final_names: HashSet<String> = HashSet::new();
     let options_system = build_options_system_prompt(&options);
@@ -43,13 +50,32 @@ pub async fn generate_rename_suggestions(
             .map(|e| format!(".{}", e.to_string_lossy()))
             .unwrap_or_default();
 
+        // Cap file reads: skip files > 1MB, read only first 64KB
+        let file_content = {
+            let max_size: u64 = 1_048_576;
+            let read_limit: u64 = 65_536;
+            match tokio::fs::metadata(&file_input.path).await {
+                Ok(meta) if meta.len() <= max_size => {
+                    use tokio::io::AsyncReadExt;
+                    let mut buf = vec![0u8; read_limit as usize];
+                    if let Ok(mut f) = tokio::fs::File::open(&file_input.path).await {
+                        let n = f.read(&mut buf).await.unwrap_or(0);
+                        String::from_utf8_lossy(&buf[..n]).to_string()
+                    } else {
+                        String::new()
+                    }
+                }
+                _ => String::new(),
+            }
+        };
+
         let ai_result = ai::generate_name(
             &provider,
             &base_url,
             &api_key,
             &model,
             &original_name,
-            &prompt,
+            &format!("{}\n{}", prompt, file_content.to_string()),
             &options_system,
         )
         .await?;
@@ -128,17 +154,13 @@ pub async fn rename_files(
         success_count: success.len(),
         failed_count: failed.len(),
     };
-    let _ = crate::history::store::add_entry(&app_handle, history_entry);
+    if let Err(e) = crate::history::store::add_entry(&app_handle, history_entry) {
+        eprintln!("[renameflow] Warning: failed to save rename history: {}", e);
+    }
 
     Ok(RenameResult { success, failed })
 }
 
 fn uuid_or_random() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos();
-    format!("rf-{:016x}", nanos)
+    Uuid::new_v4().to_string()
 }
-

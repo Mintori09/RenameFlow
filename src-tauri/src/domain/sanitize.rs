@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use uuid::Uuid;
 
 const ILLEGAL_CHARS: &[char] = &['/', '\\', ':', '*', '?', '"', '<', '>', '|'];
 const MAX_BASENAME_LENGTH: usize = 100;
@@ -12,6 +13,10 @@ pub fn sanitize_name(name: &str, extension: &str, style: &str) -> String {
     let trimmed = cleaned.trim().to_string();
 
     if trimmed.is_empty() {
+        return format!("untitled-file{}", extension);
+    }
+
+    if trimmed == "." || trimmed == ".." {
         return format!("untitled-file{}", extension);
     }
 
@@ -106,7 +111,18 @@ pub fn deduplicate_name(desired_path: &str, existing_names: &HashSet<String>) ->
         }
     }
 
-    desired_path.to_string()
+    let suffix: String = Uuid::new_v4().to_string()[..8].to_string();
+    if ext.is_empty() {
+        parent
+            .join(format!("{}-{}", stem, suffix))
+            .to_string_lossy()
+            .to_string()
+    } else {
+        parent
+            .join(format!("{}-{}{}", stem, suffix, ext))
+            .to_string_lossy()
+            .to_string()
+    }
 }
 
 #[cfg(test)]

@@ -31,10 +31,13 @@ export const useFileStore = create<FileStore>((set) => ({
   errorMessage: null,
   addFiles: (paths) =>
     set((state) => {
-      const newFiles: FileItem[] = paths.map((p) => {
+      const existing = new Set(state.files.map((f) => f.path));
+      const uniquePaths = paths.filter((p) => !existing.has(p));
+      const newFiles: FileItem[] = uniquePaths.map((p) => {
         const parts = p.replace(/\\/g, "/").split("/");
         const fullName = parts[parts.length - 1] || "";
-        const dot = fullName.lastIndexOf(".");
+        const isDotfile = fullName.startsWith(".") && fullName.lastIndexOf(".") === 0;
+        const dot = isDotfile ? -1 : fullName.lastIndexOf(".");
         const ext = dot >= 0 ? fullName.slice(dot) : "";
         const name = dot >= 0 ? fullName.slice(0, dot) : fullName;
         return {

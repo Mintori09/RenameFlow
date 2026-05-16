@@ -1,9 +1,4 @@
-export type FileStatus =
-  | "pending"
-  | "analyzing"
-  | "ready"
-  | "renamed"
-  | "failed";
+import type { FileStatus } from "../types";
 
 export type FileItem = {
   id: string;

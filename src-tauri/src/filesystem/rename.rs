@@ -18,13 +18,45 @@ pub fn execute_rename(op: &RenameOperation) -> Result<(), String> {
     let from = Path::new(&op.from_path);
     let to = Path::new(&op.to_path);
 
-    if let Some(parent) = to.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create directory: {}", e))?;
+    if from == to {
+        return Ok(());
     }
 
-    std::fs::rename(from, to)
-        .map_err(|e| format!("Failed to rename {} to {}: {}", op.from_path, op.to_path, e))
+    // Canonicalize source to resolve symlinks and relative paths
+    let from_canonical = std::fs::canonicalize(from)
+        .map_err(|e| format!("Cannot resolve source path '{}': {}", op.from_path, e))?;
+
+    if !from_canonical.is_file() {
+        return Err(format!("Not a file: {}", from_canonical.display()));
+    }
+
+    let from_parent = from_canonical
+        .parent()
+        .ok_or_else(|| "Cannot determine parent directory".to_string())?;
+
+    // Prevent path traversal in the basename
+    if let Some(file_name) = to.file_name() {
+        let name_str = file_name.to_string_lossy();
+        if name_str == "." || name_str == ".." || name_str.contains('/') || name_str.contains('\\')
+        {
+            return Err("Invalid file name: path traversal detected".to_string());
+        }
+    } else {
+        return Err("Target path has no file name".to_string());
+    }
+
+    let file_name = to.file_name().unwrap();
+    let safe_to = from_parent.join(file_name);
+
+    // Use rename which atomically replaces on Unix; on Windows we check existence
+    if safe_to.exists() {
+        return Err(format!(
+            "Target already exists: {}. Refusing to overwrite.",
+            safe_to.display()
+        ));
+    }
+
+    std::fs::rename(&from_canonical, &safe_to).map_err(|e| format!("Failed to rename: {}", e))
 }
 
 #[cfg(test)]
