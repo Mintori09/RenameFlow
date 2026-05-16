@@ -23,7 +23,7 @@ pub async fn call(
         "messages": [
             {"role": "user", "content": user_prompt}
         ],
-        "max_tokens": 100,
+        "max_tokens": 1024,
         "temperature": 0.1
     });
 

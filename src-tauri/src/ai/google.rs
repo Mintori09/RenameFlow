@@ -28,7 +28,7 @@ pub async fn call(
         ],
         "generationConfig": {
             "temperature": 0.1,
-            "maxOutputTokens": 100
+            "maxOutputTokens": 1024
         }
     });
 

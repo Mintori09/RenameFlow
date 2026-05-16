@@ -24,7 +24,8 @@ pub async fn call(
             {"role": "user", "content": user_prompt}
         ],
         "temperature": 0.1,
-        "max_tokens": 100
+        "max_tokens": 1024,
+        "thinking": false
     });
 
     let mut req = client.post(endpoint).json(&body);
@@ -56,14 +57,23 @@ pub async fn call(
 
     let response_text = raw["choices"][0]["message"]["content"]
         .as_str()
-        .unwrap_or("");
+        .unwrap_or("")
+        .to_string();
+    let response_text = if response_text.is_empty() {
+        raw["choices"][0]["message"]["reasoning_content"]
+            .as_str()
+            .unwrap_or("")
+            .to_string()
+    } else {
+        response_text
+    };
     if response_text.is_empty() {
         return Err(format!(
             "AI returned empty content. Raw response: {}",
             raw
         ));
     }
-    parse_ai_json(response_text)
+    parse_ai_json(&response_text)
 }
 
 fn build_system_prompt() -> &'static str {

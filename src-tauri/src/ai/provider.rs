@@ -1,5 +1,6 @@
 use crate::models::AiResponse;
 use reqwest::Client;
+use url::Url;
 
 pub async fn generate_name(
     provider: &str,
@@ -85,7 +86,7 @@ impl AiProvider {
         }
     }
 
-    pub fn api_endpoint(&self, base_url: &str, model: &str, api_key: &str) -> String {
+    pub fn api_endpoint(&self, base_url: &str, model: &str, _api_key: &str) -> String {
         let base = base_url.trim_end_matches('/');
         match self {
             AiProvider::OpenAiCompatible | AiProvider::Ollama | AiProvider::LmStudio => {
@@ -93,8 +94,8 @@ impl AiProvider {
             }
             AiProvider::Anthropic => format!("{}/v1/messages", base),
             AiProvider::Google => format!(
-                "{}/v1beta/models/{}:generateContent?key={}",
-                base, model, api_key
+                "{}/v1beta/models/{}:generateContent",
+                base, model
             ),
         }
     }
@@ -108,3 +109,23 @@ fn resolve_api_key(api_key: &str, env_var: &str) -> Option<String> {
     }
 }
 
+pub fn validate_base_url(base_url: &str, provider: &str) -> Result<(), String> {
+    let parsed = Url::parse(base_url).map_err(|_| "Invalid URL format".to_string())?;
+
+    if parsed.scheme() != "http" && parsed.scheme() != "https" {
+        return Err("Only http and https URLs are allowed".to_string());
+    }
+
+    let host = parsed.host_str().unwrap_or("");
+    let is_local = matches!(provider.to_lowercase().as_str(), "ollama" | "lm-studio" | "lm_studio");
+
+    if !is_local {
+        if host == "localhost" || host == "127.0.0.1" || host == "0.0.0.0"
+            || host.starts_with("192.168.") || host.starts_with("10.")
+            || host.starts_with("172.") {
+            return Err("Local/private network URLs not allowed for this provider type".to_string());
+        }
+    }
+
+    Ok(())
+}
