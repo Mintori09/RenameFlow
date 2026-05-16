@@ -89,6 +89,7 @@ pub struct ProviderResponse {
     pub provider_type: String,
     pub base_url: String,
     pub has_api_key: bool,
+    pub api_key: String,
     pub models: Vec<String>,
     pub active_model: String,
 }

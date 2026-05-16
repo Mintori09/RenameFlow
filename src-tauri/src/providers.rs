@@ -148,6 +148,7 @@ pub fn load_providers_for_frontend() -> ProviderConfigResponse {
                 provider_type: p.provider_type,
                 base_url: p.base_url,
                 has_api_key: !p.api_key.is_empty(),
+                api_key: p.api_key,
                 models: p.models,
                 active_model: p.active_model,
             })
