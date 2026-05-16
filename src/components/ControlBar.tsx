@@ -1,11 +1,14 @@
 import { useSettingsStore } from "../stores/settingsStore";
 
 export function ControlBar() {
-  const settings = useSettingsStore();
+  const activeModelId = useSettingsStore((s) => s.activeModelId);
+  const providers = useSettingsStore((s) => s.providers);
+  const setActiveModel = useSettingsStore((s) => s.setActiveModel);
+  const persistProviders = useSettingsStore((s) => s.persistProviders);
 
   function handleModelChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    settings.setActiveModel(e.target.value);
-    settings.persistProviders();
+    setActiveModel(e.target.value);
+    persistProviders();
   }
 
   return (
@@ -14,12 +17,12 @@ export function ControlBar() {
         <div className="field-title">Model</div>
         <select
           className="control-select"
-          value={settings.activeModelId}
+          value={activeModelId}
           onChange={handleModelChange}
         >
-          {settings.providers.filter((p) => p.models.length > 0).length ===
+          {providers.filter((p) => p.models.length > 0).length ===
             0 && <option value="">No models available</option>}
-          {settings.providers
+          {providers
             .filter((p) => p.models.length > 0)
             .map((p) =>
               p.models.map((m) => {

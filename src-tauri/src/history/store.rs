@@ -24,6 +24,8 @@ pub fn load_history(app_handle: &tauri::AppHandle) -> Vec<RenameHistory> {
     serde_json::from_str(&content).unwrap_or_default()
 }
 
+const MAX_HISTORY_ENTRIES: usize = 100;
+
 pub fn save_history(
     app_handle: &tauri::AppHandle,
     history: &[RenameHistory],
@@ -31,9 +33,14 @@ pub fn save_history(
     let dir = get_history_dir(app_handle);
     std::fs::create_dir_all(&dir).map_err(|e| format!("Failed to create history dir: {}", e))?;
     let path = get_history_path(app_handle);
-    let content = serde_json::to_string_pretty(history)
+    let capped: Vec<_> = history.iter().take(MAX_HISTORY_ENTRIES).cloned().collect();
+    let content = serde_json::to_string_pretty(&capped)
         .map_err(|e| format!("Failed to serialize history: {}", e))?;
-    std::fs::write(&path, content).map_err(|e| format!("Failed to write history: {}", e))?;
+
+    let tmp_path = path.with_extension("json.tmp");
+    std::fs::write(&tmp_path, &content).map_err(|e| format!("Failed to write history: {}", e))?;
+    std::fs::rename(&tmp_path, &path).map_err(|e| format!("Failed to finalize history: {}", e))?;
+
     Ok(())
 }
 

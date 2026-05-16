@@ -11,7 +11,11 @@ type SidebarProps = {
 
 export function Sidebar({ currentView, onNavigate }: SidebarProps) {
   const files = useFileStore((s) => s.files);
-  const settings = useSettingsStore();
+  const language = useSettingsStore((s) => s.language);
+  const style = useSettingsStore((s) => s.style);
+  const maxWords = useSettingsStore((s) => s.maxWords);
+  const activeModelId = useSettingsStore((s) => s.activeModelId);
+  const updateSettings = useSettingsStore((s) => s.updateSettings);
   const historyEntries = useHistoryStore((s) => s.entries);
   const undoLastRename = useWorkflowStore((s) => s.undoLastRename);
 
@@ -42,7 +46,7 @@ export function Sidebar({ currentView, onNavigate }: SidebarProps) {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <div className="logo">R</div>
+        <img src="/logo.svg" alt="RenameFlow" className="logo-img" />
         <div className="brand-text">
           <h1>RenameFlow</h1>
           <p>AI-powered file renamer</p>
@@ -77,15 +81,15 @@ export function Sidebar({ currentView, onNavigate }: SidebarProps) {
           <div>
             <div className="label">Language</div>
             <div className="select">
-              <span>{settings.language === "english" ? "English" : settings.language === "vietnamese" ? "Vietnamese" : "Auto"}</span>
+              <span>{language === "english" ? "English" : language === "vietnamese" ? "Vietnamese" : "Auto"}</span>
             </div>
           </div>
           <div>
             <div className="label">Format</div>
             <select
               className="format-select"
-              value={settings.style}
-              onChange={(e) => settings.updateSettings({ style: e.target.value as any })}
+              value={style}
+              onChange={(e) => updateSettings({ style: e.target.value as any })}
             >
               <option value="kebab-case">kebab-case</option>
               <option value="snake_case">snake_case</option>
@@ -99,8 +103,8 @@ export function Sidebar({ currentView, onNavigate }: SidebarProps) {
               type="number"
               min={1}
               max={20}
-              value={settings.maxWords}
-              onChange={(e) => settings.updateSettings({ maxWords: parseInt(e.target.value) || 8 })}
+              value={maxWords}
+              onChange={(e) => updateSettings({ maxWords: parseInt(e.target.value) || 8 })}
               className="format-select"
             />
           </div>
@@ -139,7 +143,7 @@ export function Sidebar({ currentView, onNavigate }: SidebarProps) {
       <div className="connection">
         <div>
           <strong><span className="green-dot"></span>Connected</strong>
-          <small>{settings.activeModelId ? settings.activeModelId.replace("::", " · ") : "No model selected"}</small>
+          <small>{activeModelId ? activeModelId.replace("::", " · ") : "No model selected"}</small>
         </div>
         <button className="btn" style={{ width: "30px", padding: 0, justifyContent: "center" }}>⋮</button>
       </div>

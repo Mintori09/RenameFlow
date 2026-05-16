@@ -1,5 +1,4 @@
 use crate::models::DirEntry;
-use std::path::Path;
 
 pub fn list_dir(path: &str) -> Result<Vec<DirEntry>, String> {
     let entries =

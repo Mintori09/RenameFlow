@@ -31,5 +31,5 @@ export async function undoLastRename(): Promise<{
   restored: number;
   failed: number;
 }> {
-  return tauriInvoke("undo_last_rename");
+  return tauriInvoke<{ restored: number; failed: number }>("undo_last_rename");
 }
