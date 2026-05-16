@@ -367,6 +367,22 @@ body {
 .top-actions {
   display: flex;
   gap: 8px;
+  align-items: center;
+}
+
+.auto-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--color-text);
+  user-select: none;
+}
+
+.auto-toggle input {
+  margin: 0;
+  cursor: pointer;
 }
 
 /* ===== Control Bar ===== */
@@ -546,8 +562,19 @@ body {
 }
 
 .file-spinner {
+  display: inline-block;
   font-size: 14px;
   line-height: 1;
+  animation: file-spin 1s linear infinite;
+}
+
+.file-spinner::before {
+  content: "↻";
+}
+
+@keyframes file-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .file-regenerate {
@@ -585,6 +612,22 @@ body {
   border-radius: 50%;
   background: #16a34a;
   flex-shrink: 0;
+}
+
+.status-pill.renaming {
+  background: #dbeafe;
+  color: #1e40af;
+  animation: status-pulse 1s ease-in-out infinite;
+}
+
+.status-pill.renaming::before {
+  background: #3b82f6;
+  animation: status-pulse 1s ease-in-out infinite;
+}
+
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 .status-pill.renamed, .status-pill.skipped {
@@ -1143,7 +1186,9 @@ body {
 
 /* ===== Folder Tree ===== */
 .suggestion-input {
-  flex: 0 0 200px;
+  flex: 1 1 200px;
+  max-width: 60%;
+  min-width: 0;
   height: 21px;
   padding: 0 6px;
   font-size: 12px;
@@ -1583,4 +1628,51 @@ body {
     flex-wrap: wrap;
     gap: 8px;
   }
+}
+
+/* ===== Generation Overlay ===== */
+.gen-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: wait;
+}
+
+.gen-overlay-card {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem 2.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.2);
+  cursor: default;
+  min-width: 260px;
+}
+
+.gen-overlay-text {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.gen-spinner {
+  display: inline-block;
+  font-size: 32px;
+  line-height: 1;
+  animation: gen-spin 0.8s linear infinite;
+}
+
+.gen-spinner::before {
+  content: "↻";
+}
+
+@keyframes gen-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }

@@ -1,13 +1,16 @@
 import { create } from "zustand";
+import { listen } from "@tauri-apps/api/event";
 import {
   generateRenameSuggestions,
   renameFiles as executeRename,
   undoLastRename,
+  cancelGeneration,
 } from "../services/renameService";
 import { loadRenameHistory } from "../services/historyService";
 import { useFileStore } from "./fileStore";
 import { useSettingsStore } from "./settingsStore";
 import { useHistoryStore } from "./historyStore";
+import type { RenameSuggestion } from "../types";
 
 type GenerateStatus = "idle" | "generating" | "ready" | "error";
 
@@ -23,6 +26,8 @@ type WorkflowState = {
   generateAllSuggestions: () => Promise<void>;
   regenerateSuggestion: (fileId: string) => Promise<void>;
   renameSelectedFiles: () => Promise<{ success: number; failed: number }>;
+  autoAccept: boolean;
+  toggleAutoAccept: () => void;
   cancelAllOperations: () => void;
   loadHistory: () => Promise<void>;
   undoLastRename: () => Promise<void>;
@@ -33,6 +38,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   renaming: false,
   regeneratingIds: new Set(),
   errorMessage: null,
+  autoAccept: false,
+  toggleAutoAccept: () => set((state) => ({ autoAccept: !state.autoAccept })),
 
   setGenerateStatus: (status) => set({ generateStatus: status }),
   setErrorMessage: (msg) => set({ errorMessage: msg }),
@@ -48,6 +55,14 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     fileStore.setErrorMessage(null);
     set({ generateStatus: "generating", errorMessage: null });
 
+    const unlisten = await listen<RenameSuggestion>("rename-progress", (event) => {
+      if (genId !== currentGenId) {
+        unlisten();
+        return;
+      }
+      useFileStore.getState().addSuggestion(event.payload);
+    });
+
     try {
       const result = await generateRenameSuggestions({
         files: files.map((f) => ({ id: f.id, path: f.path })),
@@ -62,9 +77,11 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
           language: settings.language,
         },
       });
+      unlisten();
       if (genId !== currentGenId) return;
       useFileStore.getState().setSuggestions(result);
     } catch (err) {
+      unlisten();
       if (genId !== currentGenId) return;
       const msg = String(err);
       fileStore.setErrorMessage(msg);
@@ -163,25 +180,61 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
     if (ops.length === 0) return { success: 0, failed: 0 };
 
+    for (const op of ops) {
+      useFileStore.getState().updateFileStatus(op.fileId, "renaming");
+    }
+
+    const unlisten = await listen<{
+      file_id: string;
+      status: string;
+      error?: string;
+    }>("rename-exec-status", (event) => {
+      if (genId !== currentGenId) {
+        unlisten();
+        return;
+      }
+      const p = event.payload;
+      if (p.status === "renamed") {
+        useFileStore.getState().updateFileStatus(p.file_id, "renamed");
+      } else if (p.status === "failed") {
+        useFileStore.getState().updateFileStatus(p.file_id, "failed", p.error);
+      }
+    });
+
     set({ renaming: true, errorMessage: null });
     try {
       const result = await executeRename(ops);
+      unlisten();
       if (genId !== currentGenId) return { success: 0, failed: 0 };
       const fileStore = useFileStore.getState();
       for (const op of result.success) {
-        fileStore.removeFile(op.fileId);
+        fileStore.updateFileStatus(op.fileId, "renamed");
       }
       for (const op of result.failed) {
         fileStore.updateFileStatus(op.operation.fileId, "failed", op.error);
       }
-      const remaining = useFileStore.getState();
-      if (Object.keys(remaining.suggestions).length === 0) {
-        remaining.setGenerateStatus("idle");
+
+      // Remove suggestions + deselected renamed files so UI is accurate
+      // (files stay visible with "Renamed" status until state is cleared)
+      const store = useFileStore.getState();
+      const nextSuggestions = { ...store.suggestions };
+      const nextSelected = new Set(store.selectedIds);
+      for (const op of result.success) {
+        delete nextSuggestions[op.fileId];
+        nextSelected.delete(op.fileId);
+      }
+      useFileStore.setState({
+        suggestions: nextSuggestions,
+        selectedIds: nextSelected,
+      });
+      if (Object.keys(nextSuggestions).length === 0) {
+        useFileStore.getState().setGenerateStatus("idle");
         set({ generateStatus: "idle" });
       }
       get().loadHistory();
       return { success: result.success.length, failed: result.failed.length };
     } catch (err) {
+      unlisten();
       const msg = String(err);
       set({ errorMessage: msg, generateStatus: "error" });
       useFileStore.getState().setErrorMessage(msg);
@@ -194,6 +247,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
   cancelAllOperations: () => {
     genId++;
+    cancelGeneration();
     set({
       generateStatus: "idle",
       renaming: false,

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useFileStore } from "../stores/fileStore";
 import { useWorkflowStore } from "../stores/workflowStore";
 
@@ -14,12 +15,27 @@ export function HomeToolbar({ onRename }: HomeToolbarProps) {
     (s) => s.generateAllSuggestions,
   );
   const renaming = useWorkflowStore((s) => s.renaming);
+  const cancelAllOperations = useWorkflowStore(
+    (s) => s.cancelAllOperations,
+  );
+  const autoAccept = useWorkflowStore((s) => s.autoAccept);
+  const toggleAutoAccept = useWorkflowStore((s) => s.toggleAutoAccept);
+
+  const prevStatusRef = useRef(generateStatus);
+  useEffect(() => {
+    if (generateStatus === "ready" && autoAccept && prevStatusRef.current === "generating") {
+      onRename();
+    }
+    prevStatusRef.current = generateStatus;
+  }, [generateStatus, autoAccept, onRename]);
 
   const hasSuggestions =
     generateStatus === "ready" && Object.keys(suggestions).length > 0;
   const selectedCount = [...selectedIds].filter(
     (id) => suggestions[id],
   ).length;
+
+  const isLocked = generateStatus === "generating";
 
   return (
     <>
@@ -31,6 +47,14 @@ export function HomeToolbar({ onRename }: HomeToolbarProps) {
             <span>Rename</span>
           </div>
           <div className="top-actions">
+            <label className="auto-toggle" title="Auto-rename files after generation">
+              <input
+                type="checkbox"
+                checked={autoAccept}
+                onChange={toggleAutoAccept}
+              />
+              Auto
+            </label>
             {hasSuggestions && (
               <button
                 className="btn"
@@ -58,6 +82,14 @@ export function HomeToolbar({ onRename }: HomeToolbarProps) {
                     ? `⟳ Rename Selected (${selectedCount})`
                     : "Generate Names"}
             </button>
+            {isLocked && (
+              <button
+                className="btn btn-cancel"
+                onClick={cancelAllOperations}
+              >
+                Cancel
+              </button>
+            )}
           </div>
         </div>
       </div>

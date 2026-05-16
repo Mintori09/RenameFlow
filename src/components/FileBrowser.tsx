@@ -134,6 +134,8 @@ export function FileBrowser({ cliPath = null }: FileBrowserProps) {
               childrenMap={b.children}
               loading={b.loading}
               suggestions={b.suggestions}
+              generateStatus={b.generateStatus}
+              storeFiles={b.storeFiles}
               checkedPaths={b.checkedPaths}
               hasAnySuggestions={b.hasAnySuggestions}
               toggleExpand={b.toggleExpand}
@@ -141,6 +143,8 @@ export function FileBrowser({ cliPath = null }: FileBrowserProps) {
               isPartiallyChecked={b.isPartiallyChecked}
               hasFilesRecursive={b.hasFilesRecursive}
               handleFolderCheck={b.handleFolderCheck}
+              handleFolderExpand={b.handleFolderExpand}
+              collecting={b.collecting}
               updateSuggestion={b.updateSuggestion}
               handleFileCheck={b.handleFileCheck}
               isDragging={b.isDragging}
@@ -170,13 +174,17 @@ type TreeNodeProps = {
   childrenMap: Map<string, DirEntry[]>;
   loading: Set<string>;
   suggestions: Record<string, { finalName: string }>;
+  storeFiles: Array<{ id: string; status: string; error?: string }>;
   checkedPaths: Set<string>;
+  generateStatus: "idle" | "generating" | "ready" | "error";
   hasAnySuggestions: boolean;
   toggleExpand: (dir: string) => Promise<void>;
   isFullyChecked: (dir: string) => boolean;
   isPartiallyChecked: (dir: string) => boolean;
   hasFilesRecursive: (dir: string) => boolean;
   handleFolderCheck: (dir: string, checked: boolean) => Promise<void>;
+  handleFolderExpand: (dir: string) => Promise<void>;
+  collecting: Set<string>;
   updateSuggestion: (fileId: string, newName: string) => void;
   handleFileCheck: (path: string, checked: boolean) => Promise<void>;
   isDragging: boolean;
@@ -196,13 +204,17 @@ const TreeNode = memo(function TreeNode({
   childrenMap,
   loading,
   suggestions,
+  storeFiles,
   checkedPaths,
+  generateStatus,
   hasAnySuggestions,
   toggleExpand,
   isFullyChecked,
   isPartiallyChecked,
   hasFilesRecursive,
   handleFolderCheck,
+  handleFolderExpand,
+  collecting,
   updateSuggestion,
   handleFileCheck,
   isDragging,
@@ -227,9 +239,8 @@ const TreeNode = memo(function TreeNode({
         <div
           className="tree-row"
           style={{ paddingLeft: `${depth * 20 + 8}px` }}
-          onClick={() => {
-            toggleExpand(entry.path);
-            handleFolderCheck(entry.path, !fullyChecked);
+          onClick={async () => {
+            await handleFolderExpand(entry.path);
           }}
         >
           <button
@@ -246,9 +257,10 @@ const TreeNode = memo(function TreeNode({
               <FolderCheckbox
                 fullyChecked={fullyChecked}
                 partiallyChecked={partiallyChecked}
-                onChange={() =>
-                  handleFolderCheck(entry.path, !fullyChecked)
-                }
+                loading={collecting.has(entry.path)}
+                onChange={async () => {
+                  await handleFolderCheck(entry.path, !fullyChecked);
+                }}
               />
             )}
           </span>
@@ -268,13 +280,17 @@ const TreeNode = memo(function TreeNode({
                   childrenMap={childrenMap}
                   loading={loading}
                   suggestions={suggestions}
+                  storeFiles={storeFiles}
                   checkedPaths={checkedPaths}
+                  generateStatus={generateStatus}
                   hasAnySuggestions={hasAnySuggestions}
                   toggleExpand={toggleExpand}
                   isFullyChecked={isFullyChecked}
                   isPartiallyChecked={isPartiallyChecked}
                   hasFilesRecursive={hasFilesRecursive}
                   handleFolderCheck={handleFolderCheck}
+                  handleFolderExpand={handleFolderExpand}
+                  collecting={collecting}
                   updateSuggestion={updateSuggestion}
                   handleFileCheck={handleFileCheck}
                   isDragging={isDragging}
@@ -300,6 +316,7 @@ const TreeNode = memo(function TreeNode({
 
   const fileId = filePathMap.get(entry.path);
   const suggestion = fileId ? suggestions[fileId] : undefined;
+  const fileEntry = fileId ? storeFiles.find((f) => f.id === fileId) : undefined;
 
   return (
     <div
@@ -327,19 +344,31 @@ const TreeNode = memo(function TreeNode({
       />
       <span className="tree-file-icon">{getFileIcon(entry.name)}</span>
       <span className="tree-label">{entry.name}</span>
-      {hasAnySuggestions &&
-        (suggestion ? (
-          <input
-            className="suggestion-input"
-            value={suggestion.finalName}
-            onChange={(e) =>
-              updateSuggestion(fileId!, e.target.value)
-            }
-            onClick={(e) => e.stopPropagation()}
-          />
-        ) : (
-          <span className="suggestion-empty" />
-        ))}
+      {fileEntry && fileEntry.status !== "pending" && (
+        <span className={`status-pill ${fileEntry.status}`}>
+          {fileEntry.status === "renaming"
+            ? "Renaming..."
+            : fileEntry.status === "renamed"
+              ? "Renamed"
+              : fileEntry.status === "failed"
+                ? `Failed${fileEntry.error ? `: ${fileEntry.error}` : ""}`
+                : fileEntry.status}
+        </span>
+      )}
+      {suggestion ? (
+        <input
+          className="suggestion-input"
+          value={suggestion.finalName}
+          onChange={(e) =>
+            updateSuggestion(fileId!, e.target.value)
+          }
+          onClick={(e) => e.stopPropagation()}
+        />
+      ) : generateStatus === "generating" && checkedPaths.has(entry.path) ? (
+        <span className="file-spinner" />
+      ) : hasAnySuggestions && (!fileEntry || fileEntry.status === "pending") ? (
+        <span className="suggestion-empty" />
+      ) : null}
     </div>
   );
 });

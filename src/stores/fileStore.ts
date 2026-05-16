@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { FileItem, RenameSuggestion, FileStatus } from "../types";
+import type { FileItem, FileStatus, RenameSuggestion } from "../types";
 
 type GenerateStatus = "idle" | "generating" | "ready" | "error";
 
@@ -14,6 +14,7 @@ type FileStore = {
   removeFilesByPaths: (paths: string[]) => void;
   clearAll: () => void;
   updateSuggestion: (fileId: string, newName: string) => void;
+  addSuggestion: (suggestion: RenameSuggestion) => void;
   setSuggestions: (suggestions: RenameSuggestion[]) => void;
   toggleFile: (id: string) => void;
   selectAll: () => void;
@@ -101,6 +102,11 @@ export const useFileStore = create<FileStore>((set) => ({
         },
       };
     }),
+  addSuggestion: (suggestion) =>
+    set((state) => ({
+      suggestions: { ...state.suggestions, [suggestion.fileId]: suggestion },
+      selectedIds: new Set([...state.selectedIds, suggestion.fileId]),
+    })),
   setSuggestions: (suggestions) =>
     set(() => {
       const map: Record<string, RenameSuggestion> = {};

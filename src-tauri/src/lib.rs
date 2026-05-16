@@ -10,14 +10,18 @@ use commands::{CliState, ResolvedPath};
 use filesystem::watcher::WatcherState;
 use gtk::prelude::GtkWindowExt;
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::atomic::AtomicBool;
+use std::sync::{Arc, Mutex};
 use tauri::Manager;
+
+pub struct CancellationState(pub Arc<AtomicBool>);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             app.manage(WatcherState::default());
+            app.manage(CancellationState(Arc::new(AtomicBool::new(false))));
 
             let initial_path = std::env::args().nth(1).and_then(|raw| {
                 let path = Path::new(&raw);
@@ -76,6 +80,7 @@ pub fn run() {
             commands::load_workspace_profiles,
             commands::save_workspace_profile,
             commands::delete_workspace_profile,
+            commands::cancel_generation,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

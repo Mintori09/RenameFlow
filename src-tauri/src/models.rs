@@ -68,6 +68,13 @@ pub struct RenameOptions {
     pub language: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RenameProgressPayload {
+    pub file_id: String,
+    pub status: String,
+    pub error: Option<String>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct AiResponse {
     pub name: Option<String>,

@@ -2,6 +2,7 @@ export type FileStatus =
   | "pending"
   | "analyzing"
   | "ready"
+  | "renaming"
   | "renamed"
   | "failed";
 

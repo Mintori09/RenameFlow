@@ -3,12 +3,14 @@ import { useEffect, useRef } from "react";
 type FolderCheckboxProps = {
   fullyChecked: boolean;
   partiallyChecked: boolean;
+  loading: boolean;
   onChange: () => void;
 };
 
 export function FolderCheckbox({
   fullyChecked,
   partiallyChecked,
+  loading,
   onChange,
 }: FolderCheckboxProps) {
   const ref = useRef<HTMLInputElement>(null);
@@ -18,6 +20,10 @@ export function FolderCheckbox({
       ref.current.indeterminate = !fullyChecked && partiallyChecked;
     }
   }, [fullyChecked, partiallyChecked]);
+
+  if (loading) {
+    return <span className="file-spinner" />;
+  }
 
   return (
     <input

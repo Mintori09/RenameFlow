@@ -6,7 +6,12 @@ export async function listDirectory(path: string): Promise<DirEntry[]> {
 }
 
 export async function collectFiles(dirPath: string): Promise<string[]> {
-  const entries = await listDirectory(dirPath);
+  let entries: DirEntry[];
+  try {
+    entries = await listDirectory(dirPath);
+  } catch {
+    return [];
+  }
   const files: string[] = [];
   const dirs: string[] = [];
 
@@ -18,9 +23,9 @@ export async function collectFiles(dirPath: string): Promise<string[]> {
     }
   }
 
-  for (const dir of dirs) {
-    const subFiles = await collectFiles(dir);
-    files.push(...subFiles);
+  const subFiles = await Promise.all(dirs.map((d) => collectFiles(d)));
+  for (const sf of subFiles) {
+    files.push(...sf);
   }
 
   return files;

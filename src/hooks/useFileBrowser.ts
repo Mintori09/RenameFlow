@@ -5,7 +5,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useFileStore } from "../stores/fileStore";
 import { useRecentStore } from "../stores/recentStore";
 import { useSettingsStore } from "../stores/settingsStore";
-import { collectFiles } from "../services/fileService";
+import { listDirectory } from "../services/fileService";
 import type { DirEntry, ResolvedPath, WorkspaceProfile } from "../types";
 
 export function parentDir(p: string): string {
@@ -25,6 +25,7 @@ export function useFileBrowser(cliPath: ResolvedPath | null) {
 
   const storeFiles = useFileStore((s) => s.files);
   const suggestions = useFileStore((s) => s.suggestions);
+  const generateStatus = useFileStore((s) => s.generateStatus);
   const addFiles = useFileStore((s) => s.addFiles);
   const removeFilesByPaths = useFileStore((s) => s.removeFilesByPaths);
   const updateSuggestion = useFileStore((s) => s.updateSuggestion);
@@ -112,6 +113,7 @@ export function useFileBrowser(cliPath: ResolvedPath | null) {
 
   const navigateToFolder = useCallback(
     async (path: string) => {
+      useFileStore.getState().clearAll();
       setRootPath(path);
       setExpanded(new Set([path]));
       setChildren(new Map());
@@ -120,6 +122,9 @@ export function useFileBrowser(cliPath: ResolvedPath | null) {
     },
     [loadChildren],
   );
+
+  const [collecting, setCollecting] = useState<Set<string>>(new Set());
+  const collectVersionRef = useRef<Record<string, number>>({});
 
   // ── Multi-select (drag toggle & shift-click) ──
   const [isDragging, setIsDragging] = useState(false);
@@ -273,12 +278,50 @@ export function useFileBrowser(cliPath: ResolvedPath | null) {
   }
 
   async function handleFolderCheck(dir: string, checked: boolean) {
-    const allPaths = await collectFiles(dir);
-    if (checked) {
-      addFiles(allPaths);
-    } else {
-      removeFilesByPaths(allPaths);
+    const version = (collectVersionRef.current[dir] || 0) + 1;
+    collectVersionRef.current[dir] = version;
+    setCollecting((prev) => new Set(prev).add(dir));
+    try {
+      const allPaths = await collectAndLoad(dir);
+      if (collectVersionRef.current[dir] !== version) return;
+      if (checked) {
+        addFiles(allPaths);
+      } else {
+        removeFilesByPaths(allPaths);
+      }
+    } catch (err) {
+      if (collectVersionRef.current[dir] !== version) return;
+      setBrowserError(`Failed to collect files: ${err}`);
+    } finally {
+      setCollecting((prev) => {
+        const next = new Set(prev);
+        next.delete(dir);
+        return next;
+      });
     }
+  }
+
+  async function handleFolderExpand(dir: string) {
+    await toggleExpand(dir);
+  }
+
+  async function collectAndLoad(
+    dir: string,
+    visited: Set<string> = new Set(),
+  ): Promise<string[]> {
+    if (visited.has(dir)) return [];
+    visited.add(dir);
+    const entries = await listDirectory(dir).catch(() => [] as DirEntry[]);
+    setChildren((prev) => new Map(prev).set(dir, entries));
+    const files: string[] = [];
+    const dirs: string[] = [];
+    for (const e of entries) {
+      if (e.is_dir) dirs.push(e.path);
+      else files.push(e.path);
+    }
+    const sub = await Promise.all(dirs.map((d) => collectAndLoad(d, visited)));
+    for (const sf of sub) files.push(...sf);
+    return files;
   }
 
   function hasFilesRecursive(dirPath: string): boolean {
@@ -358,6 +401,7 @@ export function useFileBrowser(cliPath: ResolvedPath | null) {
     loading,
     storeFiles,
     suggestions,
+    generateStatus,
     updateSuggestion,
     recentFolders,
     removeRecentFolder,
@@ -375,6 +419,8 @@ export function useFileBrowser(cliPath: ResolvedPath | null) {
     isPartiallyChecked,
     handleFileCheck,
     handleFolderCheck,
+    handleFolderExpand,
+    collecting,
     hasFilesRecursive,
     handleSelectAllToggle,
     handleSaveProfile,

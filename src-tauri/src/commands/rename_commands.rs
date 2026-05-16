@@ -1,15 +1,25 @@
 use crate::ai;
 use crate::domain::rename_plan::build_options_system_prompt;
 use crate::models::{
-    GenerateRenameFileInput, RenameHistory, RenameOperation, RenameOptions, RenameResult,
-    RenameSuggestion,
+    GenerateRenameFileInput, RenameFailed, RenameHistory, RenameOperation, RenameOptions,
+    RenameProgressPayload, RenameResult, RenameSuggestion,
 };
+use crate::CancellationState;
 use std::collections::HashSet;
 use std::path::Path;
+use std::sync::atomic::Ordering;
+use tauri::{AppHandle, Emitter, Manager};
 use uuid::Uuid;
 
 #[tauri::command]
+pub fn cancel_generation(state: tauri::State<'_, CancellationState>) -> Result<(), String> {
+    state.0.store(true, Ordering::SeqCst);
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn generate_rename_suggestions(
+    app_handle: AppHandle,
     files: Vec<GenerateRenameFileInput>,
     provider: String,
     model: String,
@@ -37,8 +47,13 @@ pub async fn generate_rename_suggestions(
     let mut suggestions = Vec::new();
     let mut seen_final_names: HashSet<String> = HashSet::new();
     let options_system = build_options_system_prompt(&options);
+    let cancelled = app_handle.state::<CancellationState>().0.clone();
+    cancelled.store(false, Ordering::SeqCst);
 
     for file_input in &files {
+        if cancelled.load(Ordering::SeqCst) {
+            break;
+        }
         let path = Path::new(&file_input.path);
         let original_name = path
             .file_stem()
@@ -80,6 +95,10 @@ pub async fn generate_rename_suggestions(
         )
         .await?;
 
+        if cancelled.load(Ordering::SeqCst) {
+            break;
+        }
+
         let raw_name = ai_result.name.unwrap_or_else(|| original_name.clone());
         let sanitized_full =
             crate::domain::sanitize::sanitize_name(&raw_name, &extension, &options.style);
@@ -106,14 +125,18 @@ pub async fn generate_rename_suggestions(
             .to_string_lossy()
             .to_string();
 
-        suggestions.push(RenameSuggestion {
+        let suggestion = RenameSuggestion {
             file_id: file_input.id.clone(),
             original_name,
             suggested_name: suggested_stem,
             final_name: final_basename,
             confidence: None,
             reason: ai_result.reason,
-        });
+        };
+
+        let _ = app_handle.emit("rename-progress", suggestion.clone());
+
+        suggestions.push(suggestion);
     }
 
     Ok(suggestions)
@@ -138,12 +161,41 @@ pub async fn rename_files(
     let mut failed = Vec::new();
 
     for op in &operations {
+        let _ = app_handle.emit(
+            "rename-exec-status",
+            RenameProgressPayload {
+                file_id: op.file_id.clone(),
+                status: "renaming".into(),
+                error: None,
+            },
+        );
+
         match crate::filesystem::rename::execute_rename(op) {
-            Ok(()) => success.push(op.clone()),
-            Err(e) => failed.push(crate::models::RenameFailed {
-                operation: op.clone(),
-                error: e,
-            }),
+            Ok(()) => {
+                let _ = app_handle.emit(
+                    "rename-exec-status",
+                    RenameProgressPayload {
+                        file_id: op.file_id.clone(),
+                        status: "renamed".into(),
+                        error: None,
+                    },
+                );
+                success.push(op.clone());
+            }
+            Err(e) => {
+                let _ = app_handle.emit(
+                    "rename-exec-status",
+                    RenameProgressPayload {
+                        file_id: op.file_id.clone(),
+                        status: "failed".into(),
+                        error: Some(e.clone()),
+                    },
+                );
+                failed.push(RenameFailed {
+                    operation: op.clone(),
+                    error: e,
+                });
+            }
         }
     }
 
