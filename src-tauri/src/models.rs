@@ -7,6 +7,7 @@ pub struct GenerateRenameFileInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RenameSuggestion {
     pub file_id: String,
     pub original_name: String,
@@ -17,6 +18,7 @@ pub struct RenameSuggestion {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RenameOperation {
     pub file_id: String,
     pub from_path: String,
@@ -44,6 +46,7 @@ pub struct UndoResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RenameHistory {
     pub id: String,
     pub created_at: String,
@@ -81,6 +84,25 @@ pub struct DirEntry {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ProviderResponse {
+    pub name: String,
+    pub provider_type: String,
+    pub base_url: String,
+    pub has_api_key: bool,
+    pub models: Vec<String>,
+    pub active_model: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderConfigResponse {
+    pub active_provider: String,
+    pub providers: Vec<ProviderResponse>,
+    pub active_model_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Provider {
     pub name: String,
     pub provider_type: String,
@@ -96,4 +118,23 @@ pub struct ProviderConfig {
     pub active_provider: String,
     pub providers: Vec<Provider>,
     pub active_model_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecentFolder {
+    pub path: String,
+    pub last_opened: String,
+    pub label: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceProfile {
+    pub name: String,
+    pub folder_path: String,
+    pub active_model_id: String,
+    pub style: String,
+    pub max_words: usize,
+    pub language: String,
 }
