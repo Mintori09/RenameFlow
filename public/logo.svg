@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5c9dff"/>
+      <stop offset="100%" stop-color="#0a4de0"/>
+    </linearGradient>
+    <linearGradient id="bgGradLight" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="white" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="white" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded square background -->
+  <rect x="32" y="32" width="448" height="448" rx="112" ry="112" fill="url(#bgGrad)"/>
+
+  <!-- Top highlight sheen -->
+  <rect x="32" y="32" width="448" height="224" rx="112" ry="112" fill="url(#bgGradLight)"/>
+  <rect x="32" y="256" width="448" height="224" rx="0" fill="url(#bgGrad)"/>
+  <rect x="32" y="256" width="448" height="224" rx="0" fill="url(#bgGradLight)" opacity="0"/>
+  <!-- Clip the sheen to top half properly by using a mask would be ideal, but let's use a simpler path -->
+  <path d="M 32 144 
+           Q 32 32, 144 32 
+           L 368 32 
+           Q 480 32, 480 144 
+           L 480 256 
+           L 32 256 Z" fill="url(#bgGradLight)"/>
+
+  <!-- Document outline -->
+  <rect x="146" y="142" width="220" height="268" rx="28" ry="28" fill="white" opacity="0.10"/>
+
+  <!-- Top line (original name) -->
+  <rect x="174" y="196" width="164" height="24" rx="12" ry="12" fill="white" opacity="0.95"/>
+
+  <!-- Middle line (transforming / dim) -->
+  <rect x="174" y="256" width="104" height="24" rx="12" ry="12" fill="white" opacity="0.40"/>
+
+  <!-- Bottom line (new name) -->
+  <rect x="174" y="316" width="164" height="24" rx="12" ry="12" fill="white" opacity="0.95"/>
+
+  <!-- Curved arrow: from top-right to bottom-right -->
+  <path d="M 348 208 
+           C 388 208, 388 248, 388 268 
+           C 388 288, 388 328, 348 328" 
+        fill="none" 
+        stroke="white" 
+        stroke-width="22" 
+        stroke-linecap="round"/>
+
+  <!-- Arrow head pointing left toward bottom line -->
+  <polyline points="360,304 348,328 324,316" 
+            fill="none" 
+            stroke="white" 
+            stroke-width="22" 
+            stroke-linecap="round" 
+            stroke-linejoin="round"/>
+</svg>
