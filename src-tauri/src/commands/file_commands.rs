@@ -1,4 +1,23 @@
+use crate::filesystem::watcher::WatcherState;
 use crate::models::DirEntry;
+use std::path::PathBuf;
+use tauri::{AppHandle, State};
+
+#[tauri::command]
+pub fn start_watching(
+    app: AppHandle,
+    state: State<'_, WatcherState>,
+    path: String,
+) -> Result<(), String> {
+    let path_buf = PathBuf::from(&path);
+    crate::filesystem::watcher::start_watching(&app, &state, path_buf)
+}
+
+#[tauri::command]
+pub fn stop_watching(state: State<'_, WatcherState>) -> Result<(), String> {
+    crate::filesystem::watcher::stop_watching(&state);
+    Ok(())
+}
 
 #[tauri::command]
 pub fn list_directory(path: String) -> Result<Vec<DirEntry>, String> {
@@ -22,11 +41,9 @@ pub fn list_directory(path: String) -> Result<Vec<DirEntry>, String> {
         });
     }
     result.sort_by(|a, b| {
-        if a.is_dir != b.is_dir {
-            std::cmp::Ordering::Less
-        } else {
-            a.name.to_lowercase().cmp(&b.name.to_lowercase())
-        }
+        b.is_dir
+            .cmp(&a.is_dir)
+            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
     });
     Ok(result)
 }

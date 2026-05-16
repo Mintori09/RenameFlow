@@ -20,6 +20,15 @@ tauri-build = { version = "2", features = [] }
 [profile.dev]
 codegen-units = 256
 incremental = true
+debug = 0
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+strip = true
 
 [dependencies]
 tauri = { version = "2", features = [] }
@@ -32,4 +41,7 @@ tokio = { version = "1", features = ["full"] }
 chrono = "0.4"
 gtk = "0.18.2"
 dirs = "6"
+notify = "7"
+uuid = { version = "1", features = ["v4"] }
+url = "2"
 
