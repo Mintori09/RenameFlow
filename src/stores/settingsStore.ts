@@ -28,6 +28,7 @@ type SettingsStore = AppSettings & {
   resetSettings: () => void;
   loadProviders: (config: ProviderConfig) => void;
   addProvider: (provider: Provider) => void;
+  updateProvider: (oldName: string, provider: Provider) => void;
   removeProvider: (name: string) => void;
   addModelToProvider: (providerName: string, modelName: string) => void;
   removeModelFromProvider: (providerName: string, modelName: string) => void;
@@ -42,7 +43,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   updateSettings: (partial) => set(partial),
 
-  resetSettings: () => set(DEFAULT_SETTINGS),
+  resetSettings: () => set({ ...DEFAULT_SETTINGS }),
 
   loadProviders: (config: ProviderConfig) => {
     set({
@@ -67,6 +68,21 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set((state) => ({
       providers: [...state.providers, provider],
     }));
+  },
+
+  updateProvider: (oldName: string, updated: Provider) => {
+    const state = get();
+    let newId = state.activeModelId;
+    if (newId.startsWith(oldName + "::")) {
+      const modelName = newId.split("::")[1];
+      newId = `${updated.name}::${modelName}`;
+    }
+    set({
+      providers: state.providers.map((p) =>
+        p.name === oldName ? updated : p,
+      ),
+      activeModelId: newId,
+    });
   },
 
   removeProvider: (name: string) => {

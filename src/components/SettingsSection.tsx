@@ -1,18 +1,22 @@
-import { useEffect, useState } from "react";
-import { useSettingsStore } from "../stores/settingsStore";
+import { useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { useSettingsStore } from "../stores/settingsStore";
+import { ProviderManager } from "./ProviderManager";
 import type { ProviderConfig } from "../types";
-import { AddProviderModal } from "./AddProviderModal";
 
 export function SettingsSection() {
-  const settings = useSettingsStore();
-  const [showAddModal, setShowAddModal] = useState(false);
+  const prompt = useSettingsStore((s) => s.prompt);
+  const style = useSettingsStore((s) => s.style);
+  const maxWords = useSettingsStore((s) => s.maxWords);
+  const language = useSettingsStore((s) => s.language);
+  const updateSettings = useSettingsStore((s) => s.updateSettings);
+  const loadProviders = useSettingsStore((s) => s.loadProviders);
 
   useEffect(() => {
     async function init() {
       try {
         const config = await invoke<ProviderConfig>("load_providers");
-        settings.loadProviders(config);
+        loadProviders(config);
       } catch {
         // defaults apply
       }
@@ -20,120 +24,11 @@ export function SettingsSection() {
     init();
   }, []);
 
-  async function handleRemove(name: string) {
-    settings.removeProvider(name);
-    await settings.persistProviders();
-  }
-
-  async function handleAddModel(providerName: string) {
-    const modelName = prompt(`Add model to "${providerName}":`);
-    if (!modelName?.trim()) return;
-    settings.addModelToProvider(providerName, modelName.trim());
-    await settings.persistProviders();
-  }
-
-  async function handleRemoveModel(
-    providerName: string,
-    modelName: string,
-  ) {
-    if (
-      !confirm(`Remove model "${modelName}" from "${providerName}"?`)
-    )
-      return;
-    settings.removeModelFromProvider(providerName, modelName);
-    await settings.persistProviders();
-  }
-
-  async function handleFetchOllamaModels(providerName: string) {
-    try {
-      const models = await invoke<string[]>("get_ollama_models");
-      for (const m of models) {
-        settings.addModelToProvider(providerName, m);
-      }
-      await settings.persistProviders();
-    } catch (err) {
-      alert(`Failed to fetch Ollama models: ${err}`);
-    }
-  }
-
   return (
     <div className="section">
       <h2 className="section-title">Settings</h2>
       <div className="settings-form">
-        <div className="config-group">
-          <label className="config-label">Providers</label>
-          <div className="provider-list">
-            {settings.providers.map((p) => (
-              <div key={p.name} className="provider-item provider-card">
-                <div className="provider-item-info">
-                  <span className="provider-item-name">{p.name}</span>
-                  <span className="provider-item-type">
-                    {p.providerType}
-                  </span>
-                  {settings.activeModelId.startsWith(p.name + "::") && (
-                    <span className="provider-item-active">(active)</span>
-                  )}
-                </div>
-                <button
-                  className="provider-item-remove"
-                  onClick={() => handleRemove(p.name)}
-                  title="Remove provider"
-                >
-                  &minus;
-                </button>
-                <div className="provider-models">
-                  {p.models.length === 0 && (
-                    <span className="no-models">
-                      No models configured.
-                    </span>
-                  )}
-                  {p.models.map((m) => (
-                    <div key={m} className="model-chip">
-                      <span
-                        className={
-                          settings.activeModelId === `${p.name}::${m}`
-                            ? "model-chip-active"
-                            : ""
-                        }
-                      >
-                        {m}
-                      </span>
-                      <button
-                        className="model-chip-remove"
-                        onClick={() => handleRemoveModel(p.name, m)}
-                        title="Remove model"
-                      >
-                        &times;
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                <div className="provider-actions">
-                  <button
-                    className="provider-add-model-btn"
-                    onClick={() => handleAddModel(p.name)}
-                  >
-                    + Add Model
-                  </button>
-                  {p.providerType === "ollama" && (
-                    <button
-                      className="provider-fetch-btn"
-                      onClick={() => handleFetchOllamaModels(p.name)}
-                    >
-                      Fetch from Ollama
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-          <button
-            className="provider-add-btn"
-            onClick={() => setShowAddModal(true)}
-          >
-            + Add Provider
-          </button>
-        </div>
+        <ProviderManager />
 
         <hr className="settings-divider" />
 
@@ -142,9 +37,9 @@ export function SettingsSection() {
           <textarea
             className="config-textarea"
             rows={3}
-            value={settings.prompt}
+            value={prompt}
             onChange={(e) =>
-              settings.updateSettings({ prompt: e.target.value })
+              updateSettings({ prompt: e.target.value })
             }
           />
         </div>
@@ -153,9 +48,9 @@ export function SettingsSection() {
           <label className="config-label">Filename Style</label>
           <select
             className="config-select"
-            value={settings.style}
+            value={style}
             onChange={(e) =>
-              settings.updateSettings({ style: e.target.value as any })
+              updateSettings({ style: e.target.value as any })
             }
           >
             <option value="kebab-case">kebab-case</option>
@@ -170,9 +65,9 @@ export function SettingsSection() {
           <input
             className="config-input"
             type="number"
-            value={settings.maxWords}
+            value={maxWords}
             onChange={(e) =>
-              settings.updateSettings({
+              updateSettings({
                 maxWords: parseInt(e.target.value) || 8,
               })
             }
@@ -185,9 +80,9 @@ export function SettingsSection() {
           <label className="config-label">Language</label>
           <select
             className="config-select"
-            value={settings.language}
+            value={language}
             onChange={(e) =>
-              settings.updateSettings({ language: e.target.value as any })
+              updateSettings({ language: e.target.value as any })
             }
           >
             <option value="english">English</option>
@@ -196,13 +91,6 @@ export function SettingsSection() {
           </select>
         </div>
       </div>
-
-      {showAddModal && (
-        <AddProviderModal
-          onClose={() => setShowAddModal(false)}
-          onAdded={() => setShowAddModal(false)}
-        />
-      )}
     </div>
   );
 }

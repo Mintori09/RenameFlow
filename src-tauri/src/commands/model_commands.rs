@@ -33,6 +33,14 @@ pub async fn get_available_models(
     base_url: String,
     api_key: String,
 ) -> Result<Vec<ModelInfo>, String> {
+    let api_key = if api_key.is_empty() {
+        crate::providers::resolve_api_key(&provider, &base_url)
+    } else {
+        api_key
+    };
+
+    crate::ai::provider::validate_base_url(&base_url, &provider)?;
+
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
         .build()
@@ -56,11 +64,13 @@ async fn get_openai_compatible_models(
     if base_url.is_empty() {
         return Err("Base URL is required.".to_string());
     }
-    let mut req = client.get(format!("{}/models", base_url.trim_end_matches('/')));
+    let mut req = client.get(format!("{}/v1/models", base_url.trim_end_matches('/')));
     if !api_key.is_empty() {
         req = req.bearer_auth(api_key);
-    } else if let Ok(key) = std::env::var("OPENAI_API_KEY") {
-        req = req.bearer_auth(key);
+    } else if !base_url.contains("localhost:11434") && !base_url.contains("127.0.0.1:11434") {
+        if let Ok(key) = std::env::var("OPENAI_API_KEY") {
+            req = req.bearer_auth(key);
+        }
     }
     let resp = req
         .send()

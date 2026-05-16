@@ -9,27 +9,23 @@ const DEFAULT_BASE_URLS: Record<ProviderType, string> = {
   ollama: "http://localhost:11434",
 };
 
-const AUTH_REQUIRED: Record<ProviderType, boolean> = {
-  "openai-compatible": false,
-  anthropic: true,
-  google: true,
-  ollama: false,
-};
-
 type Props = {
   onClose: () => void;
   onAdded: () => void;
+  editProvider?: Provider;
 };
 
-export function AddProviderModal({ onClose, onAdded }: Props) {
-  const { addProvider, persistProviders, setActiveModel } =
+export function AddProviderModal({ onClose, onAdded, editProvider }: Props) {
+  const { addProvider, updateProvider, persistProviders, setActiveModel } =
     useSettingsStore();
-  const [name, setName] = useState("");
+  const [name, setName] = useState(editProvider?.name ?? "");
   const [providerType, setProviderType] =
-    useState<ProviderType>("ollama");
-  const [baseUrl, setBaseUrl] = useState(DEFAULT_BASE_URLS["ollama"]);
-  const [apiKey, setApiKey] = useState("");
-  const [modelsInput, setModelsInput] = useState("");
+    useState<ProviderType>(editProvider?.providerType ?? "ollama");
+  const [baseUrl, setBaseUrl] = useState(editProvider?.baseUrl ?? DEFAULT_BASE_URLS["ollama"]);
+  const [apiKey, setApiKey] = useState(editProvider?.apiKey ?? "");
+  const [modelsInput, setModelsInput] = useState(
+    editProvider ? editProvider.models.join(", ") : "",
+  );
 
   function handleTypeChange(type: string) {
     const t = type as ProviderType;
@@ -39,6 +35,15 @@ export function AddProviderModal({ onClose, onAdded }: Props) {
 
   async function handleSubmit() {
     if (!name.trim()) return;
+    const providers = useSettingsStore.getState().providers;
+    if (!editProvider && providers.some((p) => p.name === name.trim())) {
+      alert(`Provider "${name.trim()}" already exists.`);
+      return;
+    }
+    if (editProvider && editProvider.name !== name.trim() && providers.some((p) => p.name === name.trim())) {
+      alert(`Provider "${name.trim()}" already exists.`);
+      return;
+    }
     const modelList = modelsInput
       .split(",")
       .map((m) => m.trim())
@@ -52,10 +57,19 @@ export function AddProviderModal({ onClose, onAdded }: Props) {
       models: modelList,
       activeModel: firstModel,
     };
-    addProvider(provider);
-    if (firstModel) {
-      setActiveModel(`${provider.name}::${firstModel}`);
+
+    if (editProvider) {
+      updateProvider(editProvider.name, provider);
+      if (editProvider.name !== provider.name && firstModel) {
+        setActiveModel(`${provider.name}::${firstModel}`);
+      }
+    } else {
+      addProvider(provider);
+      if (firstModel) {
+        setActiveModel(`${provider.name}::${firstModel}`);
+      }
     }
+
     await persistProviders();
     onAdded();
   }
@@ -63,7 +77,7 @@ export function AddProviderModal({ onClose, onAdded }: Props) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <h3 className="modal-title">Add Provider</h3>
+        <h3 className="modal-title">{editProvider ? "Edit Provider" : "Add Provider"}</h3>
 
         <div className="modal-field">
           <label className="config-label">Name</label>
@@ -100,18 +114,16 @@ export function AddProviderModal({ onClose, onAdded }: Props) {
           />
         </div>
 
-        {AUTH_REQUIRED[providerType] && (
-          <div className="modal-field">
-            <label className="config-label">API Key</label>
-            <input
-              className="config-input"
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="Leave empty to use env var"
-            />
-          </div>
-        )}
+        <div className="modal-field">
+          <label className="config-label">API Key</label>
+          <input
+            className="config-input"
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="Leave empty to use env var"
+          />
+        </div>
 
         <div className="modal-field">
           <label className="config-label">Models</label>
@@ -133,7 +145,7 @@ export function AddProviderModal({ onClose, onAdded }: Props) {
             onClick={handleSubmit}
             disabled={!name.trim()}
           >
-            Add
+            {editProvider ? "Save" : "Add"}
           </button>
         </div>
       </div>
