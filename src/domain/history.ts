@@ -14,6 +14,7 @@ export type RenameHistoryEntry = {
 
 export function formatHistoryDate(dateStr: string): string {
   const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return dateStr;
   return date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",

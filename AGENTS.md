@@ -1,69 +1,48 @@
-# RenameFlow — Agent Notes
+# RenameFlow
 
-Tauri v2 desktop app (React 19 + TypeScript frontend, Rust backend). AI-powered file rename tool with undo history.
+Tauri v2 + React 19 + TypeScript. AI-powered batch file renamer.
 
-## Dev Commands
+## Commands
 
-- `just run` — full dev (installs deps + `pnpm tauri dev`). This is the correct entry point.
-- `pnpm dev` — Vite only (port 1420, fixed). Use only for frontend-only debugging; Tauri context will be missing.
-- `pnpm build` — `tsc && vite build`. Used by Tauri before bundling.
-- `just build` — shorthand for `pnpm build`.
-- `cargo check --manifest-path src-tauri/Cargo.toml` — Rust validation.
-
-## Package Manager
-
-Use **pnpm**. Lockfile is `pnpm-lock.yaml`.
-
-## Architecture
-
-### Frontend (`src/`)
-
-- **Entry**: `src/main.tsx` → `src/App.tsx`
-- **State**: Zustand stores in `src/stores/` (fileStore, workflowStore, settingsStore, historyStore)
-- **Tauri bridge**: `src/services/tauriClient.ts` wraps `invoke()` calls. Other services build on this.
-- **Views**: "home" | "history" | "settings" (`src/views.ts`)
-- **Domain types**: `src/types.ts` mirrors Rust structs for rename operations, providers, settings
-
-### Backend (`src-tauri/src/`)
-
-- **Entry**: `src-tauri/src/main.rs` → `lib.rs::run()`
-- **Commands** (`src-tauri/src/commands/`) are the only exposed API surface. Add new `invoke` handlers in `lib.rs`.
-- **AI providers** (`src-tauri/src/ai/`): modular backends for OpenAI-compatible, Anthropic, Google, Ollama, LM Studio.
-- **Filesystem** (`src-tauri/src/filesystem/`): directory listing, file collection, rename execution.
-- **History** (`src-tauri/src/history/`): undo persistence and store.
-- **Domain** (`src-tauri/src/domain/`): rename planning, conflict detection, sanitization.
-
-### Frontend ↔ Backend Contract
-
-Rust commands in `lib.rs` map to TypeScript calls via Tauri `invoke()`. When adding a command, update both sides: Rust handler + frontend service.
-
-## Key Constraints
-
-- **Vite port locked to 1420** (`vite.config.ts`). Tauri expects this.
-- **Linux GTK titlebar removal**: `lib.rs` uses GTK to hide the native titlebar. Linux builds need GTK dev libs.
-- **Bundle targets**: `deb`, `rpm` only (`tauri.conf.json`).
-- **App identifier**: `com.mintori.renameflow`.
+| Command | What |
+|---------|------|
+| `pnpm dev` | Frontend-only on `:1420` |
+| `pnpm tauri dev` | Full Tauri dev (also runs `pnpm dev`) |
+| `pnpm build` | `tsc && vite build` |
+| `pnpm test` | Vitest run (globals: true, env: node) |
+| `just run` | Full dev entry (installs deps + tauri dev) |
+| `cargo check --manifest-path src-tauri/Cargo.toml` | Rust check |
+| `cargo test --manifest-path src-tauri/Cargo.toml` | Rust unit tests |
+| `cargo test --manifest-path src-tauri/Cargo.toml --test ollama_test -- --ignored --nocapture` | Ollama integration tests |
 
 ## Pre-commit
 
-`.husky/pre-commit` runs:
+`.husky/pre-commit`: lint-staged → tsc --noEmit (if ts/tsx staged) → cargo check (if rs staged). lint-staged config has empty command arrays — tsc + cargo are the real gates.
 
-1. `npx lint-staged` (`.lintstagedrc.json` — currently empty, no actual linters configured)
-2. `npx tsc --noEmit` if TS files staged
-3. `cargo check --manifest-path src-tauri/Cargo.toml` if Rust files staged
+## Architecture
 
-No ESLint or Prettier is currently configured. TypeScript strict mode is on (`tsconfig.json`).
+- **5 Zustand stores**: `fileStore`, `historyStore`, `recentStore`, `settingsStore`, `workflowStore` — cross-reference each other directly via `useXStore.getState()`.
+- **Services** are thin `invoke` wrappers. Use `tauriClient.ts` helper.
+- **Rust commands** in `src-tauri/src/commands/` — register new ones in `lib.rs` `generate_handler!` macro.
+- **AI providers**: OpenAI-compatible (default), Ollama, LM Studio → same API; Anthropic, Google have dedicated paths. API keys fallback to env vars (`ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`).
+- **Conventions**: kebab-case CSS classes, single `App.css`, `crypto.randomUUID()` for file IDs. Button classes: `.btn`, `.btn-sm`, `.btn.primary`.
 
-## State & Data Flow
+## Persistence
 
-1. User selects files via `fileService` / `fileStore`
-2. `workflowStore.generateAllSuggestions()` → calls `commands::generate_rename_suggestions` (Rust)
-3. Rust AI provider generates names → returns suggestions
-4. `workflowStore.renameSelectedFiles()` → calls `commands::rename_files` → Rust executes renames + persists history
-5. Undo via `commands::undo_last_rename` → Rust restores original names from history store
+| File | Location |
+|------|----------|
+| Providers | `~/.config/renameflow/providers.json` |
+| Recent folders | `~/.config/renameflow/recent_folders.json` |
+| Workspace profiles | `~/.config/renameflow/workspace_profiles.json` |
+| Rename history | `<app_data_dir>/history.json` (atomic write via `.json.tmp`) |
 
-## Adding Features
+Provider model IDs use `${name}::${model}` format. Old provider JSON is auto-migrated on load.
 
-- **New Tauri command**: Add to `src-tauri/src/commands/`, re-export in `commands/mod.rs`, register in `lib.rs` invoke handler, add frontend wrapper in `src/services/tauriClient.ts` or relevant service.
-- **New AI provider**: Implement trait in `src-tauri/src/ai/`, register in provider module.
-- **New settings field**: Update `AppSettings` in `src/types.ts`, Rust settings domain, and both load/save commands.
+## Source quirks
+
+- `list_directory` skips dot-files (`.name.starts_with('.')`).
+- Dev profile: `codegen-units=256`, `incremental=true`, `debug=0`, dep `opt-level=2`.
+- `domain/rename.ts` `applyFilenameStyle` duplicates Rust `sanitize.rs` `apply_style` — frontend version may be stale.
+- `src/types.ts` and `src/domain/files.ts` both define `FileStatus` — avoid drift.
+- Tauri v2: `invoke` from `@tauri-apps/api/core`, not `@tauri-apps/api/tauri`.
+- `VITE_TAURI_HOST` env var used for HMR config in vite.config.ts.
