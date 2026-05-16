@@ -1,398 +1,345 @@
-import { useState, useCallback, useRef, useEffect } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
-import { useFileStore } from "../stores/fileStore";
-import type { DirEntry } from "../types";
+import { memo } from "react";
+import { useFileBrowser } from "../hooks/useFileBrowser";
+import { FolderCheckbox } from "./FolderCheckbox";
+import { getFileIcon } from "../utils/fileIcon";
+import type { DirEntry, ResolvedPath } from "../types";
 
-async function collectAllFiles(dir: string): Promise<string[]> {
-  const entries = await invoke<DirEntry[]>("list_directory", { path: dir });
-  const files: string[] = [];
-  for (const entry of entries) {
-    if (entry.is_dir) {
-      const sub = await collectAllFiles(entry.path);
-      files.push(...sub);
-    } else {
-      files.push(entry.path);
-    }
-  }
-  return files;
-}
+type FileBrowserProps = {
+  cliPath?: ResolvedPath | null;
+};
 
-function getFileIcon(name: string): string {
-  const ext = name.split(".").pop()?.toLowerCase() || "";
-  const iconMap: Record<string, string> = {
-    jpg: "🖼️",
-    jpeg: "🖼️",
-    png: "🖼️",
-    gif: "🖼️",
-    svg: "🖼️",
-    webp: "🖼️",
-    bmp: "🖼️",
-    ico: "🖼️",
-    mp4: "🎬",
-    avi: "🎬",
-    mkv: "🎬",
-    mov: "🎬",
-    wmv: "🎬",
-    flv: "🎬",
-    webm: "🎬",
-    mp3: "🎵",
-    wav: "🎵",
-    ogg: "🎵",
-    flac: "🎵",
-    aac: "🎵",
-    m4a: "🎵",
-    wma: "🎵",
-    ts: "🔵",
-    tsx: "🔵",
-    js: "🟡",
-    jsx: "🟡",
-    py: "🐍",
-    rs: "🦀",
-    go: "🔷",
-    java: "☕",
-    c: "⚙️",
-    cpp: "⚙️",
-    h: "⚙️",
-    cs: "⚙️",
-    css: "🎨",
-    html: "🌐",
-    xml: "📋",
-    json: "📋",
-    yaml: "📋",
-    yml: "📋",
-    toml: "📋",
-    sh: "💻",
-    bash: "💻",
-    zsh: "💻",
-    fish: "💻",
-    pdf: "📕",
-    doc: "📘",
-    docx: "📘",
-    xls: "📗",
-    xlsx: "📗",
-    ppt: "📙",
-    pptx: "📙",
-    txt: "📄",
-    md: "📝",
-    rtf: "📄",
-    log: "📄",
-    csv: "📊",
-    zip: "📦",
-    tar: "📦",
-    gz: "📦",
-    bz2: "📦",
-    rar: "📦",
-    "7z": "📦",
-    db: "🗄️",
-    sqlite: "🗄️",
-    sql: "🗄️",
-    exe: "⚡",
-    dmg: "⚡",
-    appimage: "⚡",
-    deb: "⚡",
-    rpm: "⚡",
-    dll: "🔧",
-    so: "🔧",
-    dylib: "🔧",
-    lock: "🔒",
-    env: "🔒",
-    pem: "🔒",
-    key: "🔒",
-    pfx: "🔒",
-    torrent: "🧲",
-    iso: "💿",
-    img: "💿",
-    psd: "🎨",
-    ai: "🎨",
-    fig: "🎨",
-    sketch: "🎨",
-    ttf: "🔤",
-    otf: "🔤",
-    woff: "🔤",
-    woff2: "🔤",
-    eot: "🔤",
-  };
-  return iconMap[ext] || "📄";
-}
+export function FileBrowser({ cliPath = null }: FileBrowserProps) {
+  const b = useFileBrowser(cliPath);
 
-function FolderCheckbox({
-  fullyChecked,
-  partiallyChecked,
-  onChange,
-}: {
-  fullyChecked: boolean;
-  partiallyChecked: boolean;
-  onChange: () => void;
-}) {
-  const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    if (ref.current) {
-      ref.current.indeterminate = !fullyChecked && partiallyChecked;
-    }
-  }, [fullyChecked, partiallyChecked]);
-
-  return (
-    <input
-      type="checkbox"
-      className="table-checkbox"
-      checked={fullyChecked}
-      ref={ref}
-      onChange={onChange}
-    />
-  );
-}
-
-export function FileBrowser() {
-  const [rootPath, setRootPath] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [children, setChildren] = useState<Map<string, DirEntry[]>>(new Map());
-  const [loading, setLoading] = useState<Set<string>>(new Set());
-  const [browserError, setBrowserError] = useState<string | null>(null);
-
-  const storeFiles = useFileStore((s) => s.files);
-  const suggestions = useFileStore((s) => s.suggestions);
-  const addFiles = useFileStore((s) => s.addFiles);
-  const removeFilesByPaths = useFileStore((s) => s.removeFilesByPaths);
-  const updateSuggestion = useFileStore((s) => s.updateSuggestion);
-
-  const hasAnySuggestions = Object.keys(suggestions).length > 0;
-
-  const checkedPaths = new Set(storeFiles.map((f) => f.path));
-
-  const loadChildren = useCallback(
-    async (dir: string) => {
-      if (children.has(dir)) return;
-      setLoading((prev) => new Set(prev).add(dir));
-      try {
-        const entries = await invoke<DirEntry[]>("list_directory", {
-          path: dir,
-        });
-        setChildren((prev) => new Map(prev).set(dir, entries));
-        setBrowserError(null);
-      } catch {
-        setBrowserError("Failed to load folder contents");
-      }
-      setLoading((prev) => {
-        const next = new Set(prev);
-        next.delete(dir);
-        return next;
-      });
-    },
-    [children],
-  );
-
-  async function openFolder() {
-    const selected = await open({ directory: true, multiple: false });
-    if (!selected) return;
-    const path = selected as string;
-    setRootPath(path);
-    setExpanded(new Set([path]));
-    setChildren(new Map());
-    await loadChildren(path);
-  }
-
-  async function toggleExpand(dir: string) {
-    if (expanded.has(dir)) {
-      const next = new Set(expanded);
-      next.delete(dir);
-      setExpanded(next);
-    } else {
-      const next = new Set(expanded);
-      next.add(dir);
-      setExpanded(next);
-      if (!children.has(dir)) {
-        await loadChildren(dir);
-      }
-    }
-  }
-
-  function isFullyChecked(dir: string): boolean {
-    const dirChildren = children.get(dir);
-    if (!dirChildren) return false;
-    const fileChildren = dirChildren.filter((e) => !e.is_dir);
-    if (fileChildren.length === 0) {
-      return dirChildren
-        .filter((e) => e.is_dir)
-        .every((e) => isFullyChecked(e.path));
-    }
-    return (
-      fileChildren.every((e) => checkedPaths.has(e.path)) &&
-      dirChildren.filter((e) => e.is_dir).every((e) => isFullyChecked(e.path))
-    );
-  }
-
-  function isPartiallyChecked(dir: string): boolean {
-    const dirChildren = children.get(dir);
-    if (!dirChildren) return false;
-    return dirChildren.some((e) => {
-      if (e.is_dir) return isPartiallyChecked(e.path) || isFullyChecked(e.path);
-      return checkedPaths.has(e.path);
-    });
-  }
-
-  async function handleFileCheck(path: string, checked: boolean) {
-    if (checked) {
-      addFiles([path]);
-    } else {
-      removeFilesByPaths([path]);
-    }
-  }
-
-  async function handleFolderCheck(dir: string, checked: boolean) {
-    const allPaths = await collectAllFiles(dir);
-    if (checked) {
-      addFiles(allPaths);
-    } else {
-      removeFilesByPaths(allPaths);
-    }
-  }
-
-  function renderEntry(entry: DirEntry, depth: number) {
-    if (entry.is_dir) {
-      const isExpanded = expanded.has(entry.path);
-      const dirChildren = children.get(entry.path);
-      const isLoading = loading.has(entry.path);
-      const fullyChecked = isFullyChecked(entry.path);
-      const partiallyChecked = isPartiallyChecked(entry.path);
-
-      return (
-        <div key={entry.path}>
-          <div
-            className="tree-row"
-            style={{ paddingLeft: `${depth * 20 + 8}px` }}
-          >
-            <button
-              className="tree-expand"
-              onClick={() => toggleExpand(entry.path)}
-            >
-              {isLoading ? "⋯" : isExpanded ? "▾" : "▸"}
-            </button>
-            <span className="folder-icon" />
-            <span className="tree-label">{entry.name}</span>
-            <FolderCheckbox
-              fullyChecked={fullyChecked}
-              partiallyChecked={partiallyChecked}
-              onChange={() => handleFolderCheck(entry.path, !fullyChecked)}
-            />
-          </div>
-          {isExpanded && dirChildren && dirChildren.length > 0 && (
-            <div>
-              {dirChildren.map((child) => renderEntry(child, depth + 1))}
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    const fileItem = storeFiles.find((f) => f.path === entry.path);
-    const suggestion = fileItem ? suggestions[fileItem.id] : undefined;
-
-    return (
-      <div
-        key={entry.path}
-        className="tree-row"
-        style={{ paddingLeft: `${depth * 20 + 28}px` }}
-      >
-        <span className="tree-file-icon">{getFileIcon(entry.name)}</span>
-        <span className="tree-label">{entry.name}</span>
-        {hasAnySuggestions && (
-          suggestion ? (
-            <input
-              className="suggestion-input"
-              value={suggestion.finalName}
-              onChange={(e) => updateSuggestion(fileItem!.id, e.target.value)}
-              onClick={(e) => e.stopPropagation()}
-            />
-          ) : (
-            <span className="suggestion-empty" />
-          )
-        )}
-        <input
-          type="checkbox"
-          className="table-checkbox"
-          checked={checkedPaths.has(entry.path)}
-          onChange={() =>
-            handleFileCheck(entry.path, !checkedPaths.has(entry.path))
-          }
-        />
-      </div>
-    );
-  }
-
-  if (!rootPath) {
+  if (!b.rootPath) {
     return (
       <div className="browser-empty">
-        <button className="open-folder-btn" onClick={openFolder}>
+        <button className="open-folder-btn" onClick={b.openFolder}>
           Open Folder
         </button>
         <p className="browser-hint">
           Browse your files and select files to rename
         </p>
+        {b.recentFolders.length > 0 && (
+          <div className="recent-empty-list">
+            <span className="recent-empty-label">Recent folders:</span>
+            {b.recentFolders.map((f) => (
+              <button
+                key={f.path}
+                className="recent-chip"
+                onClick={() => b.navigateToFolder(f.path)}
+                title={f.path}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
 
-  function getAllLoadedFilePaths(): string[] {
-    const paths = new Set<string>();
-    const collect = (dir: string) => {
-      const entries = children.get(dir);
-      if (!entries) return;
-      for (const e of entries) {
-        if (e.is_dir) collect(e.path);
-        else paths.add(e.path);
-      }
-    };
-    if (rootPath) collect(rootPath);
-    return [...paths];
-  }
-
-  const loadedPaths = getAllLoadedFilePaths();
-  const allSelected = loadedPaths.length > 0 && loadedPaths.every((p) => checkedPaths.has(p));
-
-  function handleSelectAllToggle() {
-    if (loadedPaths.length === 0) return;
-    if (allSelected) {
-      removeFilesByPaths(loadedPaths);
-    } else {
-      addFiles(loadedPaths);
-    }
-  }
-
-  const rootChildren = children.get(rootPath);
-
   return (
     <div className="file-browser">
       <div className="browser-header">
-        <span className="browser-root" title={rootPath}>
-          {rootPath}
+        <span className="browser-root" title={b.rootPath}>
+          {b.rootPath}
         </span>
         <div className="browser-actions">
-          <button className="btn btn-sm" onClick={handleSelectAllToggle}>
-            {allSelected ? "Deselect All" : "Select All"}
+          <button className="btn btn-sm" onClick={b.handleSelectAllToggle}>
+            {b.allSelected ? "Deselect All" : "Select All"}
           </button>
-          <button className="btn btn-sm" onClick={openFolder}>
+          <button className="btn btn-sm" onClick={b.handleSaveProfile}>
+            Save Profile
+          </button>
+          {b.profiles.length > 0 && (
+            <select
+              className="btn btn-sm profile-select"
+              defaultValue=""
+              onChange={(e) => {
+                if (!e.target.value) return;
+                if (e.target.value === "__save__") {
+                  b.handleSaveProfile();
+                } else {
+                  const p = b.profiles.find(
+                    (pr) => pr.name === e.target.value,
+                  );
+                  if (p) b.handleLoadProfile(p);
+                }
+                e.target.value = "";
+              }}
+            >
+              <option value="" disabled>
+                Load Profile...
+              </option>
+              {b.profiles.map((p) => (
+                <option key={p.name} value={p.name}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          )}
+          <button className="btn btn-sm" onClick={b.openFolder}>
             Browse
           </button>
         </div>
       </div>
+
+      {b.recentFolders.length > 0 && (
+        <div className="recent-bar">
+          <span className="recent-bar-label">Recent:</span>
+          <div className="recent-bar-list">
+            {b.recentFolders.map((f) => (
+              <div key={f.path} className="recent-bar-item">
+                <button
+                  className="recent-chip"
+                  onClick={() => b.navigateToFolder(f.path)}
+                  title={f.path}
+                >
+                  {f.label}
+                </button>
+                <button
+                  className="recent-chip-remove"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    b.removeRecentFolder(f.path);
+                  }}
+                  title="Remove from recent"
+                >
+                  &times;
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="browser-body">
-        {browserError && (
+        {b.browserError && (
           <div
             className="browser-empty-msg"
             style={{ color: "var(--color-error)" }}
           >
-            {browserError}
+            {b.browserError}
           </div>
         )}
-        {rootChildren && rootChildren.length > 0 ? (
-          rootChildren.map((entry) => renderEntry(entry, 0))
+        {b.rootChildren && b.rootChildren.length > 0 ? (
+          b.rootChildren.map((entry) => (
+            <TreeNode
+              key={entry.path}
+              entry={entry}
+              depth={0}
+              filePathMap={b.filePathMap}
+              expanded={b.expanded}
+              childrenMap={b.children}
+              loading={b.loading}
+              suggestions={b.suggestions}
+              checkedPaths={b.checkedPaths}
+              hasAnySuggestions={b.hasAnySuggestions}
+              toggleExpand={b.toggleExpand}
+              isFullyChecked={b.isFullyChecked}
+              isPartiallyChecked={b.isPartiallyChecked}
+              hasFilesRecursive={b.hasFilesRecursive}
+              handleFolderCheck={b.handleFolderCheck}
+              updateSuggestion={b.updateSuggestion}
+              handleFileCheck={b.handleFileCheck}
+              isDragging={b.isDragging}
+              handleFileClick={b.handleFileClick}
+              handleFileDragStart={b.handleFileDragStart}
+              handleFileDragOver={b.handleFileDragOver}
+              handleFileDragEnd={b.handleFileDragEnd}
+              handleFileRowClick={b.handleFileRowClick}
+              handleFileRowMouseDown={b.handleFileRowMouseDown}
+            />
+          ))
         ) : (
           <div className="browser-empty-msg">
-            {rootChildren ? "Empty folder" : "Loading..."}
+            {b.rootChildren ? "Empty folder" : "Loading..."}
           </div>
         )}
       </div>
     </div>
   );
 }
+
+type TreeNodeProps = {
+  entry: DirEntry;
+  depth: number;
+  filePathMap: Map<string, string>;
+  expanded: Set<string>;
+  childrenMap: Map<string, DirEntry[]>;
+  loading: Set<string>;
+  suggestions: Record<string, { finalName: string }>;
+  checkedPaths: Set<string>;
+  hasAnySuggestions: boolean;
+  toggleExpand: (dir: string) => Promise<void>;
+  isFullyChecked: (dir: string) => boolean;
+  isPartiallyChecked: (dir: string) => boolean;
+  hasFilesRecursive: (dir: string) => boolean;
+  handleFolderCheck: (dir: string, checked: boolean) => Promise<void>;
+  updateSuggestion: (fileId: string, newName: string) => void;
+  handleFileCheck: (path: string, checked: boolean) => Promise<void>;
+  isDragging: boolean;
+  handleFileClick: (path: string, shiftKey: boolean, ctrlKey: boolean) => void;
+  handleFileDragStart: (path: string) => void;
+  handleFileDragOver: (path: string) => void;
+  handleFileDragEnd: () => void;
+  handleFileRowClick: (path: string) => void;
+  handleFileRowMouseDown: (path: string, shiftKey: boolean, ctrlKey: boolean) => void;
+};
+
+const TreeNode = memo(function TreeNode({
+  entry,
+  depth,
+  filePathMap,
+  expanded,
+  childrenMap,
+  loading,
+  suggestions,
+  checkedPaths,
+  hasAnySuggestions,
+  toggleExpand,
+  isFullyChecked,
+  isPartiallyChecked,
+  hasFilesRecursive,
+  handleFolderCheck,
+  updateSuggestion,
+  handleFileCheck,
+  isDragging,
+  handleFileClick,
+  handleFileDragStart,
+  handleFileDragOver,
+  handleFileDragEnd,
+  handleFileRowClick,
+  handleFileRowMouseDown,
+}: TreeNodeProps) {
+  if (entry.is_dir) {
+    const isExpanded = expanded.has(entry.path);
+    const dirChildren = childrenMap.get(entry.path);
+    const isLoading = loading.has(entry.path);
+    const fullyChecked = isFullyChecked(entry.path);
+    const partiallyChecked = isPartiallyChecked(entry.path);
+    const hasFiles = dirChildren ? hasFilesRecursive(entry.path) : true;
+    const visibleChildren = dirChildren;
+
+    return (
+      <div>
+        <div
+          className="tree-row"
+          style={{ paddingLeft: `${depth * 20 + 8}px` }}
+          onClick={() => {
+            toggleExpand(entry.path);
+            handleFolderCheck(entry.path, !fullyChecked);
+          }}
+        >
+          <button
+            className="tree-expand"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleExpand(entry.path);
+            }}
+          >
+            {isLoading ? "⋯" : isExpanded ? "▾" : "▸"}
+          </button>
+          <span onClick={(e) => e.stopPropagation()}>
+            {hasFiles && (
+              <FolderCheckbox
+                fullyChecked={fullyChecked}
+                partiallyChecked={partiallyChecked}
+                onChange={() =>
+                  handleFolderCheck(entry.path, !fullyChecked)
+                }
+              />
+            )}
+          </span>
+          <span className="folder-icon" />
+          <span className="tree-label">{entry.name}</span>
+        </div>
+        {isExpanded &&
+          (visibleChildren && visibleChildren.length > 0 ? (
+            <div>
+              {visibleChildren.map((child) => (
+                <TreeNode
+                  key={child.path}
+                  entry={child}
+                  depth={depth + 1}
+                  filePathMap={filePathMap}
+                  expanded={expanded}
+                  childrenMap={childrenMap}
+                  loading={loading}
+                  suggestions={suggestions}
+                  checkedPaths={checkedPaths}
+                  hasAnySuggestions={hasAnySuggestions}
+                  toggleExpand={toggleExpand}
+                  isFullyChecked={isFullyChecked}
+                  isPartiallyChecked={isPartiallyChecked}
+                  hasFilesRecursive={hasFilesRecursive}
+                  handleFolderCheck={handleFolderCheck}
+                  updateSuggestion={updateSuggestion}
+                  handleFileCheck={handleFileCheck}
+                  isDragging={isDragging}
+                  handleFileClick={handleFileClick}
+                  handleFileDragStart={handleFileDragStart}
+                  handleFileDragOver={handleFileDragOver}
+                  handleFileDragEnd={handleFileDragEnd}
+                  handleFileRowClick={handleFileRowClick}
+                  handleFileRowMouseDown={handleFileRowMouseDown}
+                />
+              ))}
+            </div>
+          ) : isLoading ? (
+            <div
+              style={{ paddingLeft: `${(depth + 1) * 20 + 8}px` }}
+            >
+              Loading...
+            </div>
+          ) : null)}
+      </div>
+    );
+  }
+
+  const fileId = filePathMap.get(entry.path);
+  const suggestion = fileId ? suggestions[fileId] : undefined;
+
+  return (
+    <div
+      className="tree-row"
+      style={{ paddingLeft: `${depth * 20 + 28}px` }}
+      onMouseDown={(e) => {
+        if (e.button !== 0) return;
+        handleFileRowMouseDown(entry.path, e.shiftKey, e.ctrlKey || e.metaKey);
+      }}
+      onMouseEnter={() => {
+        handleFileDragOver(entry.path);
+      }}
+      onClick={() => {
+        handleFileRowClick(entry.path);
+      }}
+    >
+      <input
+        type="checkbox"
+        className="table-checkbox"
+        checked={checkedPaths.has(entry.path)}
+        onChange={() =>
+          handleFileCheck(entry.path, !checkedPaths.has(entry.path))
+        }
+        onClick={(e) => e.stopPropagation()}
+      />
+      <span className="tree-file-icon">{getFileIcon(entry.name)}</span>
+      <span className="tree-label">{entry.name}</span>
+      {hasAnySuggestions &&
+        (suggestion ? (
+          <input
+            className="suggestion-input"
+            value={suggestion.finalName}
+            onChange={(e) =>
+              updateSuggestion(fileId!, e.target.value)
+            }
+            onClick={(e) => e.stopPropagation()}
+          />
+        ) : (
+          <span className="suggestion-empty" />
+        ))}
+    </div>
+  );
+});
