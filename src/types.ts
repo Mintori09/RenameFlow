@@ -1,4 +1,9 @@
-export type FileStatus = "pending" | "analyzing" | "ready" | "renamed" | "failed";
+export type FileStatus =
+  | "pending"
+  | "analyzing"
+  | "ready"
+  | "renamed"
+  | "failed";
 
 export type FileItem = {
   id: string;
@@ -48,9 +53,17 @@ export type UndoResult = {
   failed: number;
 };
 
-export type ProviderType = "openai-compatible" | "anthropic" | "google" | "ollama";
+export type ProviderType =
+  | "openai-compatible"
+  | "anthropic"
+  | "google"
+  | "ollama";
 
-export type FilenameStyle = "kebab-case" | "snake_case" | "title-case" | "camelCase";
+export type FilenameStyle =
+  | "kebab-case"
+  | "snake_case"
+  | "title-case"
+  | "camelCase";
 
 export type Language = "english" | "vietnamese" | "auto";
 
@@ -68,6 +81,12 @@ export type AppSettings = {
 export type ModelInfo = {
   name: string;
   label?: string;
+};
+
+export type ResolvedPath = {
+  path: string;
+  name: string;
+  isDir: boolean;
 };
 
 export type DirEntry = {
@@ -90,4 +109,19 @@ export type ProviderConfig = {
   activeProvider: string;
   providers: Provider[];
   activeModelId: string;
+};
+
+export type RecentFolder = {
+  path: string;
+  lastOpened: string;
+  label: string;
+};
+
+export type WorkspaceProfile = {
+  name: string;
+  folderPath: string;
+  activeModelId: string;
+  style: FilenameStyle;
+  maxWords: number;
+  language: Language;
 };
