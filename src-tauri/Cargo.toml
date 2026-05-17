@@ -44,4 +44,10 @@ dirs = "6"
 notify = "7"
 uuid = { version = "1", features = ["v4"] }
 url = "2"
+image = { version = "0.24", default-features = false, features = ["jpeg", "png", "gif", "bmp"] }
+base64 = "0.22"
+zip = "2"
+quick-xml = "0.36"
+mp4ameta = "0.13"
+id3 = "1"
 

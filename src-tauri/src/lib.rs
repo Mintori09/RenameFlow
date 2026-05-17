@@ -1,6 +1,7 @@
 pub mod ai;
 pub mod commands;
 pub mod domain;
+pub mod extractors;
 pub mod filesystem;
 pub mod history;
 pub mod models;

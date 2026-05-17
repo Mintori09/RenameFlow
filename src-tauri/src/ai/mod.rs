@@ -6,5 +6,6 @@ pub mod openai;
 pub mod parser;
 pub mod provider;
 
+pub use crate::extractors::MediaInput;
 pub use provider::{generate_name, AiProvider};
 

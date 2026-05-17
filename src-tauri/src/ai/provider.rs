@@ -1,3 +1,4 @@
+use crate::extractors::MediaInput;
 use crate::models::AiResponse;
 use reqwest::Client;
 use url::Url;
@@ -10,6 +11,7 @@ pub async fn generate_name(
     file_name: &str,
     user_prompt: &str,
     options_system: &str,
+    media: &[MediaInput],
 ) -> Result<AiResponse, String> {
     let client = Client::builder()
         .timeout(std::time::Duration::from_secs(60))
@@ -29,13 +31,15 @@ pub async fn generate_name(
                 file_name,
                 user_prompt,
                 options_system,
+                media,
             )
             .await
         }
         AiProvider::Anthropic => {
             let endpoint = p.api_endpoint(base_url, model, api_key);
             let resolved_key = resolve_api_key(api_key, "ANTHROPIC_API_KEY").ok_or_else(|| {
-                "Anthropic API key required. Set ANTHROPIC_API_KEY env var or enter in settings.".to_string()
+                "Anthropic API key required. Set ANTHROPIC_API_KEY env var or enter in settings."
+                    .to_string()
             })?;
             crate::ai::anthropic::call(
                 &client,
@@ -45,6 +49,7 @@ pub async fn generate_name(
                 file_name,
                 user_prompt,
                 options_system,
+                media,
             )
             .await
         }
@@ -61,6 +66,7 @@ pub async fn generate_name(
                 file_name,
                 user_prompt,
                 options_system,
+                media,
             )
             .await
         }
@@ -93,10 +99,7 @@ impl AiProvider {
                 format!("{}/v1/chat/completions", base)
             }
             AiProvider::Anthropic => format!("{}/v1/messages", base),
-            AiProvider::Google => format!(
-                "{}/v1beta/models/{}:generateContent",
-                base, model
-            ),
+            AiProvider::Google => format!("{}/v1beta/models/{}:generateContent", base, model),
         }
     }
 }
@@ -117,13 +120,22 @@ pub fn validate_base_url(base_url: &str, provider: &str) -> Result<(), String> {
     }
 
     let host = parsed.host_str().unwrap_or("");
-    let is_local = matches!(provider.to_lowercase().as_str(), "ollama" | "lm-studio" | "lm_studio");
+    let is_local = matches!(
+        provider.to_lowercase().as_str(),
+        "ollama" | "lm-studio" | "lm_studio"
+    );
 
     if !is_local {
-        if host == "localhost" || host == "127.0.0.1" || host == "0.0.0.0"
-            || host.starts_with("192.168.") || host.starts_with("10.")
-            || host.starts_with("172.") {
-            return Err("Local/private network URLs not allowed for this provider type".to_string());
+        if host == "localhost"
+            || host == "127.0.0.1"
+            || host == "0.0.0.0"
+            || host.starts_with("192.168.")
+            || host.starts_with("10.")
+            || host.starts_with("172.")
+        {
+            return Err(
+                "Local/private network URLs not allowed for this provider type".to_string(),
+            );
         }
     }
 

@@ -1,6 +1,12 @@
 import { useFileStore } from "../stores/fileStore";
 import { getFileIcon } from "../utils/fileIcon";
 
+function hasImageFiles(files: { path: string }[]): boolean {
+  return files.some((f) =>
+    /\.(jpe?g|png|gif|bmp|webp|tiff?|ico|heic|heif|avif)$/i.test(f.path),
+  );
+}
+
 export function DroppedFileList() {
   const files = useFileStore((s) => s.files);
   const suggestions = useFileStore((s) => s.suggestions);
@@ -12,9 +18,17 @@ export function DroppedFileList() {
   if (files.length === 0) return null;
 
   const hasSuggestions = Object.keys(suggestions).length > 0;
+  const showVisionWarning = hasImageFiles(files);
 
   return (
-    <div className="dropped-file-list">
+    <>
+      {showVisionWarning && (
+        <div className="vision-warning-banner">
+          The list contains image files. Best names come from vision-capable
+          models (GPT-4o, Claude 3, Gemini) in Settings.
+        </div>
+      )}
+      <div className="dropped-file-list">
       <div className="dropped-file-list-header">
         <span className="dropped-file-list-title">
           Dropped Files ({files.length})
@@ -77,6 +91,7 @@ export function DroppedFileList() {
           );
         })}
       </div>
-    </div>
+      </div>
+    </>
   );
 }

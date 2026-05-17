@@ -100,6 +100,15 @@ export function FileBrowser({ cliPath = null }: FileBrowserProps) {
           </div>
         )}
 
+        {b.storeFiles.some((f) =>
+          /\.(jpe?g|png|gif|bmp|webp|tiff?|ico|heic|heif|avif)$/i.test(f.path),
+        ) && (
+          <div className="vision-warning-banner">
+            The list contains image files. Best names come from vision-capable
+            models (GPT-4o, Claude 3, Gemini) in Settings.
+          </div>
+        )}
+
         <div className="browser-body">
           {b.browserError && (
             <div

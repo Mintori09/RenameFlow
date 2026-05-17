@@ -1,4 +1,5 @@
 use crate::ai::parser::parse_ai_json;
+use crate::extractors::MediaInput;
 use crate::models::AiResponse;
 use reqwest::Client;
 
@@ -10,19 +11,40 @@ pub async fn call(
     file_name: &str,
     user_prompt: &str,
     options_system: &str,
+    media: &[MediaInput],
 ) -> Result<AiResponse, String> {
     let system_prompt = build_system_prompt();
-    let user_prompt = format!(
+    let user_text = format!(
         "{}\n\nOriginal file name: {}{}",
         user_prompt, file_name, options_system
     );
 
+    let messages = if media.is_empty() {
+        serde_json::json!([
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_text}
+        ])
+    } else {
+        let mut content_parts: Vec<serde_json::Value> = vec![
+            serde_json::json!({"type": "text", "text": user_text}),
+        ];
+        for m in media {
+            content_parts.push(serde_json::json!({
+                "type": "image_url",
+                "image_url": {
+                    "url": format!("data:{};base64,{}", m.mime_type, m.base64_data)
+                }
+            }));
+        }
+        serde_json::json!([
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": content_parts}
+        ])
+    };
+
     let body = serde_json::json!({
         "model": model,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ],
+        "messages": messages,
         "temperature": 0.1,
         "max_tokens": 1024,
         "thinking": false
@@ -79,4 +101,3 @@ pub async fn call(
 fn build_system_prompt() -> &'static str {
     "You are a file renaming assistant. You MUST respond with ONLY a raw JSON object, no other text. Example: {\"name\": \"quarterly-report\", \"reason\": \"descriptive name reflecting content\"}. Fields: \"name\" (filename without extension, lowercase, hyphens, max 8 words), \"reason\" (short explanation). Avoid generic names like image, file, document. If you lack context, invent a reasonable name anyway. NEVER include markdown, backticks, or explanations."
 }
-

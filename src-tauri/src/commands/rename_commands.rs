@@ -1,5 +1,6 @@
 use crate::ai;
 use crate::domain::rename_plan::build_options_system_prompt;
+use crate::extractors;
 use crate::models::{
     GenerateRenameFileInput, RenameFailed, RenameHistory, RenameOperation, RenameOptions,
     RenameProgressPayload, RenameResult, RenameSuggestion,
@@ -65,23 +66,13 @@ pub async fn generate_rename_suggestions(
             .map(|e| format!(".{}", e.to_string_lossy()))
             .unwrap_or_default();
 
-        // Cap file reads: skip files > 1MB, read only first 64KB
-        let file_content = {
-            let max_size: u64 = 1_048_576;
-            let read_limit: u64 = 65_536;
-            match tokio::fs::metadata(&file_input.path).await {
-                Ok(meta) if meta.len() <= max_size => {
-                    use tokio::io::AsyncReadExt;
-                    let mut buf = vec![0u8; read_limit as usize];
-                    if let Ok(mut f) = tokio::fs::File::open(&file_input.path).await {
-                        let n = f.read(&mut buf).await.unwrap_or(0);
-                        String::from_utf8_lossy(&buf[..n]).to_string()
-                    } else {
-                        String::new()
-                    }
-                }
-                _ => String::new(),
-            }
+        let ctx = extractors::extract(path).await;
+
+        let has_media = !ctx.media.is_empty();
+        let context_for_ai = if has_media {
+            String::new()
+        } else {
+            ctx.summary
         };
 
         let ai_result = ai::generate_name(
@@ -90,8 +81,9 @@ pub async fn generate_rename_suggestions(
             &api_key,
             &model,
             &original_name,
-            &format!("{}\n{}", prompt, file_content.to_string()),
+            &format!("{}\n\n{}", prompt, context_for_ai),
             &options_system,
+            &ctx.media,
         )
         .await?;
 

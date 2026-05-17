@@ -1804,3 +1804,15 @@ body {
   font-size: 0.6875rem;
   padding: 0.15rem 0.5rem;
 }
+
+/* ===== Vision Warning Banner ===== */
+.vision-warning-banner {
+  margin: 0.5rem 0.75rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: #856404;
+  background: #fff3cd;
+  border: 1px solid #ffeeba;
+  border-radius: 6px;
+}
