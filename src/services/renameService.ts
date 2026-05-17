@@ -31,6 +31,10 @@ export async function cancelGeneration(): Promise<void> {
   return tauriInvoke<void>("cancel_generation");
 }
 
+export async function undoFileRename(fromPath: string, toPath: string): Promise<void> {
+  return tauriInvoke<void>("undo_file_rename", { fromPath, toPath });
+}
+
 export async function undoLastRename(): Promise<{
   restored: number;
   failed: number;

@@ -20,7 +20,7 @@ impl Default for WatcherState {
     }
 }
 
-pub fn start_watching(app_handle: &AppHandle, state: &WatcherState, path: PathBuf) -> Result<(), String> {
+pub fn start_watching(app_handle: &AppHandle, state: &WatcherState, paths: Vec<PathBuf>) -> Result<(), String> {
     stop_watching(state);
 
     let (event_tx, mut event_rx) = mpsc::channel::<Event>(256);
@@ -36,9 +36,11 @@ pub fn start_watching(app_handle: &AppHandle, state: &WatcherState, path: PathBu
     )
     .map_err(|e| e.to_string())?;
 
-    watcher
-        .watch(&path, RecursiveMode::Recursive)
-        .map_err(|e| e.to_string())?;
+    for p in &paths {
+        watcher
+            .watch(p, RecursiveMode::NonRecursive)
+            .map_err(|e| format!("Failed to watch {}: {}", p.display(), e))?;
+    }
 
     let handle = app_handle.clone();
     async_runtime::spawn(async move {

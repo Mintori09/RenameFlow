@@ -1,10 +1,11 @@
 import { memo } from "react";
 import { useFileBrowser } from "../hooks/useFileBrowser";
 import { useFileStore } from "../stores/fileStore";
+import { useWorkflowStore } from "../stores/workflowStore";
 import { FolderCheckbox } from "./FolderCheckbox";
 import { DroppedFileList } from "./DroppedFileList";
 import { getFileIcon } from "../utils/fileIcon";
-import type { DirEntry, ResolvedPath } from "../types";
+import type { DirEntry, FileItem, ResolvedPath } from "../types";
 
 type FileBrowserProps = {
   cliPath?: ResolvedPath | null;
@@ -170,7 +171,7 @@ type TreeNodeProps = {
   childrenMap: Map<string, DirEntry[]>;
   loading: Set<string>;
   suggestions: Record<string, { finalName: string }>;
-  storeFiles: Array<{ id: string; status: string; error?: string }>;
+  storeFiles: FileItem[];
   checkedPaths: Set<string>;
   generateStatus: "idle" | "generating" | "ready" | "error";
   hasAnySuggestions: boolean;
@@ -312,7 +313,11 @@ const TreeNode = memo(function TreeNode({
 
   const fileId = filePathMap.get(entry.path);
   const suggestion = fileId ? suggestions[fileId] : undefined;
-  const fileEntry = fileId ? storeFiles.find((f) => f.id === fileId) : undefined;
+  const fileEntry = fileId
+    ? storeFiles.find((f) => f.id === fileId)
+    : storeFiles.find((f) => f.oldPath === entry.path);
+  const isRenamedFile = !!fileEntry?.oldPath;
+  const undoFileRename = useWorkflowStore((s) => s.undoFileRename);
 
   return (
     <div
@@ -339,8 +344,18 @@ const TreeNode = memo(function TreeNode({
         onClick={(e) => e.stopPropagation()}
       />
       <span className="tree-file-icon">{getFileIcon(entry.name)}</span>
-      <span className="tree-label">{entry.name}</span>
-      {fileEntry && fileEntry.status !== "pending" && (
+      {isRenamedFile ? (
+        <span className="tree-label">
+          <span className="old-name">{entry.name}</span>
+          <span className="rename-arrow">&rarr;</span>
+          {fileEntry!.originalName + fileEntry!.extension}
+        </span>
+      ) : (
+        <span className="tree-label">{entry.name}</span>
+      )}
+      {isRenamedFile ? (
+        <span className="status-pill renamed">Renamed &#10003;</span>
+      ) : fileEntry && fileEntry.status !== "pending" ? (
         <span className={`status-pill ${fileEntry.status}`}>
           {fileEntry.status === "renaming"
             ? "Renaming..."
@@ -350,8 +365,8 @@ const TreeNode = memo(function TreeNode({
                 ? `Failed${fileEntry.error ? `: ${fileEntry.error}` : ""}`
                 : fileEntry.status}
         </span>
-      )}
-      {suggestion ? (
+      ) : null}
+      {suggestion && !isRenamedFile ? (
         <input
           className="suggestion-input"
           value={suggestion.finalName}
@@ -360,11 +375,20 @@ const TreeNode = memo(function TreeNode({
           }
           onClick={(e) => e.stopPropagation()}
         />
-      ) : generateStatus === "generating" && checkedPaths.has(entry.path) ? (
+      ) : !isRenamedFile && generateStatus === "generating" && checkedPaths.has(entry.path) ? (
         <span className="file-spinner" />
-      ) : hasAnySuggestions && (!fileEntry || fileEntry.status === "pending") ? (
+      ) : !isRenamedFile && hasAnySuggestions && (!fileEntry || fileEntry.status === "pending") ? (
         <span className="suggestion-empty" />
       ) : null}
+      {isRenamedFile && (
+        <button
+          className="undo-btn"
+          onClick={() => undoFileRename(fileEntry!.id)}
+          title="Undo rename"
+        >
+          &#8634;
+        </button>
+      )}
     </div>
   );
 });

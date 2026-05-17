@@ -17,6 +17,7 @@ export type FileItem = {
   thumbnailPath?: string;
   status: FileStatus;
   error?: string;
+  oldPath?: string;
 };
 
 export type RenameSuggestion = {

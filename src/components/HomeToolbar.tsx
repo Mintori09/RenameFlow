@@ -1,4 +1,3 @@
-import { useEffect, useRef } from "react";
 import { useFileStore } from "../stores/fileStore";
 import { useWorkflowStore } from "../stores/workflowStore";
 
@@ -14,6 +13,7 @@ export function HomeToolbar({ onRename }: HomeToolbarProps) {
   const generateAllSuggestions = useWorkflowStore(
     (s) => s.generateAllSuggestions,
   );
+  const autoRenameAll = useWorkflowStore((s) => s.autoRenameAll);
   const renaming = useWorkflowStore((s) => s.renaming);
   const cancelAllOperations = useWorkflowStore(
     (s) => s.cancelAllOperations,
@@ -21,21 +21,13 @@ export function HomeToolbar({ onRename }: HomeToolbarProps) {
   const autoAccept = useWorkflowStore((s) => s.autoAccept);
   const toggleAutoAccept = useWorkflowStore((s) => s.toggleAutoAccept);
 
-  const prevStatusRef = useRef(generateStatus);
-  useEffect(() => {
-    if (generateStatus === "ready" && autoAccept && prevStatusRef.current === "generating") {
-      onRename();
-    }
-    prevStatusRef.current = generateStatus;
-  }, [generateStatus, autoAccept, onRename]);
-
   const hasSuggestions =
     generateStatus === "ready" && Object.keys(suggestions).length > 0;
   const selectedCount = [...selectedIds].filter(
     (id) => suggestions[id],
   ).length;
 
-  const isLocked = generateStatus === "generating";
+  const isLocked = generateStatus === "generating" || renaming;
 
   return (
     <>
@@ -47,7 +39,7 @@ export function HomeToolbar({ onRename }: HomeToolbarProps) {
             <span>Rename</span>
           </div>
           <div className="top-actions">
-            <label className="auto-toggle" title="Auto-rename files after generation">
+            <label className="auto-toggle" title="Auto-rename each file as suggestion arrives">
               <input
                 type="checkbox"
                 checked={autoAccept}
@@ -55,7 +47,7 @@ export function HomeToolbar({ onRename }: HomeToolbarProps) {
               />
               Auto
             </label>
-            {hasSuggestions && (
+            {!autoAccept && hasSuggestions && (
               <button
                 className="btn"
                 onClick={generateAllSuggestions}
@@ -66,18 +58,24 @@ export function HomeToolbar({ onRename }: HomeToolbarProps) {
             <button
               className="btn primary"
               onClick={
-                hasSuggestions ? onRename : generateAllSuggestions
+                autoAccept
+                  ? autoRenameAll
+                  : hasSuggestions
+                    ? onRename
+                    : generateAllSuggestions
               }
               disabled={
                 generateStatus === "generating" ||
                 renaming ||
-                (hasSuggestions && selectedCount === 0)
+                (!autoAccept && hasSuggestions && selectedCount === 0)
               }
             >
-              {generateStatus === "generating"
-                ? "Generating..."
-                : renaming
-                  ? "Renaming..."
+              {generateStatus === "generating" || renaming
+                ? autoAccept
+                  ? "Auto Renaming..."
+                  : "Generating..."
+                : autoAccept
+                  ? "⟳ Auto Rename"
                   : hasSuggestions
                     ? `⟳ Rename Selected (${selectedCount})`
                     : "Generate Names"}

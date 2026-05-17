@@ -79,6 +79,7 @@ pub fn run() {
             commands::add_recent_folder,
             commands::load_recent_folders,
             commands::remove_recent_folder,
+            commands::undo_file_rename,
             commands::cancel_generation,
         ])
         .run(tauri::generate_context!())

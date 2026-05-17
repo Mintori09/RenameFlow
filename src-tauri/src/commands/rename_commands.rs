@@ -19,6 +19,19 @@ pub fn cancel_generation(state: tauri::State<'_, CancellationState>) -> Result<(
 }
 
 #[tauri::command]
+pub fn undo_file_rename(from_path: String, to_path: String) -> Result<(), String> {
+    let from = Path::new(&from_path);
+    let to = Path::new(&to_path);
+    if !from.exists() {
+        return Err(format!("Source path does not exist: {}", from_path));
+    }
+    if to.exists() {
+        return Err(format!("Target already exists: {}", to_path));
+    }
+    std::fs::rename(from, to).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn generate_rename_suggestions(
     app_handle: AppHandle,
     files: Vec<GenerateRenameFileInput>,

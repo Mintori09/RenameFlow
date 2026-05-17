@@ -25,11 +25,15 @@ export function useFileDrop() {
             setDragState("idle");
           } else if (type === "drop") {
             console.log("[useFileDrop] drop paths:", event.payload.paths);
-            invoke<string[]>("resolve_drop_paths", { paths: event.payload.paths })
+              const rawPaths = event.payload.paths;
+              invoke<string[]>("resolve_drop_paths", { paths: rawPaths })
               .then((resolved) => {
                 console.log("[useFileDrop] resolved", resolved.length, "files");
                 if (resolved.length > 0) {
-                  useFileStore.getState().addFiles(resolved);
+                  const store = useFileStore.getState();
+                  store.addFiles(resolved);
+                  const merged = [...new Set([...store.dropSourcePaths, ...rawPaths])];
+                  store.setDropSourcePaths(merged);
                 }
               })
               .catch((err) => {

@@ -19,10 +19,10 @@ fn normalize_drop_path(raw: &str) -> String {
 pub fn start_watching(
     app: AppHandle,
     state: State<'_, WatcherState>,
-    path: String,
+    paths: Vec<String>,
 ) -> Result<(), String> {
-    let path_buf = PathBuf::from(&path);
-    crate::filesystem::watcher::start_watching(&app, &state, path_buf)
+    let path_bufs: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
+    crate::filesystem::watcher::start_watching(&app, &state, path_bufs)
 }
 
 #[tauri::command]

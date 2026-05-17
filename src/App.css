@@ -1805,6 +1805,65 @@ body {
   padding: 0.15rem 0.5rem;
 }
 
+/* ===== Rename Counter ===== */
+.rename-counter {
+  font-size: 0.6875rem;
+  color: var(--color-success-text);
+  background: var(--color-success-bg);
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-sm);
+  margin-left: 0.5rem;
+  flex-shrink: 0;
+}
+
+/* ===== Old Name Strikethrough ===== */
+.old-name {
+  text-decoration: line-through;
+  opacity: 0.5;
+  margin-right: 0.25rem;
+}
+
+.rename-arrow {
+  margin-right: 0.25rem;
+  color: var(--color-text-muted);
+}
+
+/* ===== Renamed Flash Animation ===== */
+.renamed-flash {
+  animation: flash-green 0.6s ease-out;
+}
+
+@keyframes flash-green {
+  0%   { background-color: rgba(34, 197, 94, 0.15); }
+  100% { background-color: transparent; }
+}
+
+/* ===== Undo Button ===== */
+.undo-btn {
+  background: none;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.125rem 0.35rem;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: all 0.15s;
+  margin-left: auto;
+}
+
+.undo-btn:hover {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+  background: rgba(0, 91, 255, 0.06);
+}
+
+.tree-row .undo-btn {
+  margin-left: auto;
+  margin-right: 0.25rem;
+}
+
 /* ===== Vision Warning Banner ===== */
 .vision-warning-banner {
   margin: 0.5rem 0.75rem;

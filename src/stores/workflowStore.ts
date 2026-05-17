@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import {
   generateRenameSuggestions,
   renameFiles as executeRename,
+  undoFileRename,
   undoLastRename,
   cancelGeneration,
 } from "../services/renameService";
@@ -16,6 +17,15 @@ type GenerateStatus = "idle" | "generating" | "ready" | "error";
 
 let genId = 0;
 
+function splitFileName(fullName: string): [string, string] {
+  const isDotfile = fullName.startsWith(".") && fullName.lastIndexOf(".") === 0;
+  const dot = isDotfile ? -1 : fullName.lastIndexOf(".");
+  return [
+    dot >= 0 ? fullName.slice(0, dot) : fullName,
+    dot >= 0 ? fullName.slice(dot) : "",
+  ];
+}
+
 type WorkflowState = {
   generateStatus: GenerateStatus;
   renaming: boolean;
@@ -26,6 +36,8 @@ type WorkflowState = {
   generateAllSuggestions: () => Promise<void>;
   regenerateSuggestion: (fileId: string) => Promise<void>;
   renameSelectedFiles: () => Promise<{ success: number; failed: number }>;
+  autoRenameAll: () => Promise<void>;
+  undoFileRename: (fileId: string) => Promise<void>;
   autoAccept: boolean;
   toggleAutoAccept: () => void;
   cancelAllOperations: () => void;
@@ -195,7 +207,13 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       }
       const p = event.payload;
       if (p.status === "renamed") {
-        useFileStore.getState().updateFileStatus(p.file_id, "renamed");
+        const store = useFileStore.getState();
+        const op = ops.find((o) => o.fileId === p.file_id);
+        if (op) {
+          const [name, ext] = splitFileName(op.newName);
+          store.updateFileName(p.file_id, op.toPath, name, ext);
+        }
+        store.updateFileStatus(p.file_id, "renamed");
       } else if (p.status === "failed") {
         useFileStore.getState().updateFileStatus(p.file_id, "failed", p.error);
       }
@@ -208,6 +226,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       if (genId !== currentGenId) return { success: 0, failed: 0 };
       const fileStore = useFileStore.getState();
       for (const op of result.success) {
+        const [name, ext] = splitFileName(op.newName);
+        fileStore.updateFileName(op.fileId, op.toPath, name, ext);
         fileStore.updateFileStatus(op.fileId, "renamed");
       }
       for (const op of result.failed) {
@@ -242,6 +262,126 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       return { success: 0, failed: ops.length };
     } finally {
       set({ renaming: false });
+    }
+  },
+
+  autoRenameAll: async () => {
+    const currentGenId = ++genId;
+    const fileStore = useFileStore.getState();
+    const files = fileStore.files;
+    const settings = useSettingsStore.getState();
+    if (files.length === 0) return;
+
+    fileStore.setGenerateStatus("generating");
+    fileStore.setErrorMessage(null);
+    set({ generateStatus: "generating", errorMessage: null });
+
+    const unlisten = await listen<RenameSuggestion>("rename-progress", async (event) => {
+      if (genId !== currentGenId) { unlisten(); return; }
+      const suggestion = event.payload;
+      useFileStore.getState().addSuggestion(suggestion);
+
+      const store = useFileStore.getState();
+      const file = store.files.find((f) => f.id === suggestion.fileId);
+      if (!file) return;
+
+      let finalName = suggestion.finalName;
+      if (file.extension && !finalName.endsWith(file.extension)) {
+        finalName = finalName + file.extension;
+      }
+      const newPath = file.directory ? `${file.directory}/${finalName}` : finalName;
+
+      store.updateFileStatus(suggestion.fileId, "renaming");
+      store.setOldPath(suggestion.fileId, file.path);
+
+      try {
+        const result = await executeRename([{
+          fileId: file.id,
+          fromPath: file.path,
+          toPath: newPath,
+          originalName: file.originalName,
+          newName: finalName,
+        }]);
+        if (genId !== currentGenId) return;
+        const st = useFileStore.getState();
+
+        if (result.success.length > 0) {
+          const [name, ext] = splitFileName(finalName);
+          st.updateFileName(suggestion.fileId, newPath, name, ext);
+          st.updateFileStatus(suggestion.fileId, "renamed");
+          const next = { ...st.suggestions };
+          delete next[suggestion.fileId];
+          const nextSel = new Set(st.selectedIds);
+          nextSel.delete(suggestion.fileId);
+          useFileStore.setState({ suggestions: next, selectedIds: nextSel });
+        }
+      } catch (err) {
+        if (genId !== currentGenId) return;
+        useFileStore.getState().updateFileStatus(suggestion.fileId, "failed", String(err));
+      }
+    });
+
+    try {
+      const result = await generateRenameSuggestions({
+        files: files.map((f) => ({ id: f.id, path: f.path })),
+        provider: settings.provider,
+        model: settings.model,
+        baseUrl: settings.baseUrl,
+        apiKey: settings.apiKey,
+        prompt: settings.prompt,
+        options: {
+          style: settings.style,
+          max_words: settings.maxWords,
+          language: settings.language,
+        },
+      });
+      unlisten();
+      if (genId !== currentGenId) return;
+
+      const store = useFileStore.getState();
+      const remaining = result.filter((s) => {
+        const f = store.files.find((ff) => ff.id === s.fileId);
+        return f && f.status === "pending";
+      });
+
+      if (remaining.length > 0) {
+        store.setSuggestions(remaining);
+      } else {
+        store.setGenerateStatus("idle");
+        set({ generateStatus: "idle" });
+      }
+    } catch (err) {
+      unlisten();
+      if (genId !== currentGenId) return;
+      const msg = String(err);
+      fileStore.setErrorMessage(msg);
+      fileStore.setGenerateStatus("error");
+      set({ errorMessage: msg, generateStatus: "error" });
+    }
+  },
+
+  undoFileRename: async (fileId: string) => {
+    try {
+      const store = useFileStore.getState();
+      const file = store.files.find((f) => f.id === fileId);
+      if (!file || !file.oldPath) return;
+
+      await undoFileRename(file.path, file.oldPath);
+
+      const pathParts = file.oldPath.replace(/\\/g, "/").split("/");
+      const fullName = pathParts[pathParts.length - 1] || "";
+      const isDotfile = fullName.startsWith(".") && fullName.lastIndexOf(".") === 0;
+      const dot = isDotfile ? -1 : fullName.lastIndexOf(".");
+      const ext = dot >= 0 ? fullName.slice(dot) : "";
+      const name = dot >= 0 ? fullName.slice(0, dot) : fullName;
+
+      const st = useFileStore.getState();
+      st.updateFileName(fileId, file.oldPath, name, ext);
+      st.setOldPath(fileId, undefined);
+      st.updateFileStatus(fileId, "pending");
+    } catch (err) {
+      set({ errorMessage: String(err) });
+      useFileStore.getState().setErrorMessage(String(err));
     }
   },
 

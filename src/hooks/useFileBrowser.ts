@@ -23,6 +23,7 @@ export function useFileBrowser(cliPath: ResolvedPath | null) {
   const [localRefreshTrigger, setLocalRefreshTrigger] = useState(0);
 
   const storeFiles = useFileStore((s) => s.files);
+  const dropSourcePaths = useFileStore((s) => s.dropSourcePaths);
   const suggestions = useFileStore((s) => s.suggestions);
   const generateStatus = useFileStore((s) => s.generateStatus);
   const addFiles = useFileStore((s) => s.addFiles);
@@ -73,7 +74,7 @@ export function useFileBrowser(cliPath: ResolvedPath | null) {
         await invoke("stop_watching");
       } catch {}
       if (!mounted) return;
-      await invoke("start_watching", { path });
+      await invoke("start_watching", { paths: [path] });
       if (!mounted) return;
       unlisten = await listen("fs-changes", () => {
         setLocalRefreshTrigger((n) => n + 1);
@@ -90,6 +91,66 @@ export function useFileBrowser(cliPath: ResolvedPath | null) {
       invoke("stop_watching").catch(() => {});
     };
   }, [rootPath]);
+
+  // Drop-mode watcher: watch parent directories of dropped files
+  useEffect(() => {
+    if (rootPath) return;
+    if (dropSourcePaths.length === 0) return;
+
+    let unlisten: (() => void) | null = null;
+    let mounted = true;
+
+    const setup = async () => {
+      try {
+        await invoke("stop_watching");
+      } catch {}
+      if (!mounted) return;
+
+      const currentFiles = useFileStore.getState().files;
+      const watchDirs = [...new Set(currentFiles.map((f) => f.directory))];
+      if (watchDirs.length === 0) return;
+
+      await invoke("start_watching", { paths: watchDirs });
+      if (!mounted) return;
+
+      unlisten = await listen("fs-changes", async () => {
+        try {
+          const store = useFileStore.getState();
+          if (store.dropSourcePaths.length === 0) return;
+
+          const resolved = await invoke<string[]>("resolve_drop_paths", {
+            paths: store.dropSourcePaths,
+          });
+          if (!mounted) return;
+
+          const currentPaths = new Set(store.files.map((f) => f.path));
+          const resolvedSet = new Set(resolved);
+
+          const toRemove = store.files
+            .filter((f) => !resolvedSet.has(f.path))
+            .map((f) => f.path);
+          const toAdd = resolved.filter((p) => !currentPaths.has(p));
+
+          if (toRemove.length > 0) {
+            useFileStore.getState().removeFilesByPaths(toRemove);
+          }
+          if (toAdd.length > 0) {
+            useFileStore.getState().addFiles(toAdd);
+          }
+        } catch (err) {
+          console.error("[useFileBrowser] drop reconcile failed:", err);
+        }
+      });
+    };
+
+    setup();
+
+    return () => {
+      mounted = false;
+      if (unlisten) unlisten();
+      invoke("stop_watching").catch(() => {});
+    };
+  }, [rootPath, dropSourcePaths, storeFiles.length]);
 
   const loadChildren = useCallback(async (dir: string) => {
     setLoading((prev) => new Set(prev).add(dir));

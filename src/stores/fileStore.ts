@@ -9,6 +9,8 @@ type FileStore = {
   selectedIds: Set<string>;
   generateStatus: GenerateStatus;
   errorMessage: string | null;
+  dropSourcePaths: string[];
+  setDropSourcePaths: (paths: string[]) => void;
   addFiles: (paths: string[]) => void;
   removeFile: (id: string) => void;
   removeFilesByPaths: (paths: string[]) => void;
@@ -21,15 +23,20 @@ type FileStore = {
   deselectAll: () => void;
   setGenerateStatus: (status: GenerateStatus) => void;
   setErrorMessage: (msg: string | null) => void;
-  updateFileStatus: (id: string, status: FileStatus, error?: string) => void;
+  updateFileStatus: (id: string, status: FileStatus, error?: string) =>
+    void;
+  updateFileName: (id: string, path: string, originalName: string, extension: string) =>
+    void;
+  setOldPath: (id: string, oldPath?: string) => void;
 };
-
 export const useFileStore = create<FileStore>((set) => ({
   files: [],
   suggestions: {},
   selectedIds: new Set(),
   generateStatus: "idle",
   errorMessage: null,
+  dropSourcePaths: [],
+  setDropSourcePaths: (paths) => set({ dropSourcePaths: paths }),
   addFiles: (paths) =>
     set((state) => {
       const existing = new Set(state.files.map((f) => f.path));
@@ -90,6 +97,7 @@ export const useFileStore = create<FileStore>((set) => ({
       selectedIds: new Set(),
       generateStatus: "idle",
       errorMessage: null,
+      dropSourcePaths: [],
     }),
   updateSuggestion: (fileId, newName) =>
     set((state) => {
@@ -133,6 +141,18 @@ export const useFileStore = create<FileStore>((set) => ({
     set((state) => ({
       files: state.files.map((f) =>
         f.id === id ? { ...f, status, error } : f,
+      ),
+    })),
+  updateFileName: (id, path, originalName, extension) =>
+    set((state) => ({
+      files: state.files.map((f) =>
+        f.id === id ? { ...f, path, originalName, extension } : f,
+      ),
+    })),
+  setOldPath: (id, oldPath) =>
+    set((state) => ({
+      files: state.files.map((f) =>
+        f.id === id ? { ...f, oldPath } : f,
       ),
     })),
 }));
