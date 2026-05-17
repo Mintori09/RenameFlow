@@ -29,6 +29,5 @@ export function useAppInit(
     })();
 
     useRecentStore.getState().loadRecentFolders();
-    useRecentStore.getState().loadProfiles();
   }, []);
 }

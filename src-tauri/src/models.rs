@@ -135,14 +135,3 @@ pub struct RecentFolder {
     pub last_opened: String,
     pub label: String,
 }
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct WorkspaceProfile {
-    pub name: String,
-    pub folder_path: String,
-    pub active_model_id: String,
-    pub style: String,
-    pub max_words: usize,
-    pub language: String,
-}

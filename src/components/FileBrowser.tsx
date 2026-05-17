@@ -1,6 +1,8 @@
 import { memo } from "react";
 import { useFileBrowser } from "../hooks/useFileBrowser";
+import { useFileStore } from "../stores/fileStore";
 import { FolderCheckbox } from "./FolderCheckbox";
+import { DroppedFileList } from "./DroppedFileList";
 import { getFileIcon } from "../utils/fileIcon";
 import type { DirEntry, ResolvedPath } from "../types";
 
@@ -10,159 +12,144 @@ type FileBrowserProps = {
 
 export function FileBrowser({ cliPath = null }: FileBrowserProps) {
   const b = useFileBrowser(cliPath);
+  const clearAll = useFileStore((s) => s.clearAll);
 
   if (!b.rootPath) {
+    if (b.storeFiles.length > 0) {
+      return <DroppedFileList />;
+    }
     return (
-      <div className="browser-empty">
-        <button className="open-folder-btn" onClick={b.openFolder}>
-          Open Folder
-        </button>
-        <p className="browser-hint">
-          Browse your files and select files to rename
-        </p>
-        {b.recentFolders.length > 0 && (
-          <div className="recent-empty-list">
-            <span className="recent-empty-label">Recent folders:</span>
-            {b.recentFolders.map((f) => (
-              <button
-                key={f.path}
-                className="recent-chip"
-                onClick={() => b.navigateToFolder(f.path)}
-                title={f.path}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="file-browser">
-      <div className="browser-header">
-        <span className="browser-root" title={b.rootPath}>
-          {b.rootPath}
-        </span>
-        <div className="browser-actions">
-          <button className="btn btn-sm" onClick={b.handleSelectAllToggle}>
-            {b.allSelected ? "Deselect All" : "Select All"}
+        <div className="browser-empty">
+          <button className="open-folder-btn" onClick={b.openFolder}>
+            Open Folder
           </button>
-          <button className="btn btn-sm" onClick={b.handleSaveProfile}>
-            Save Profile
-          </button>
-          {b.profiles.length > 0 && (
-            <select
-              className="btn btn-sm profile-select"
-              defaultValue=""
-              onChange={(e) => {
-                if (!e.target.value) return;
-                if (e.target.value === "__save__") {
-                  b.handleSaveProfile();
-                } else {
-                  const p = b.profiles.find(
-                    (pr) => pr.name === e.target.value,
-                  );
-                  if (p) b.handleLoadProfile(p);
-                }
-                e.target.value = "";
-              }}
-            >
-              <option value="" disabled>
-                Load Profile...
-              </option>
-              {b.profiles.map((p) => (
-                <option key={p.name} value={p.name}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          )}
-          <button className="btn btn-sm" onClick={b.openFolder}>
-            Browse
-          </button>
-        </div>
-      </div>
-
-      {b.recentFolders.length > 0 && (
-        <div className="recent-bar">
-          <span className="recent-bar-label">Recent:</span>
-          <div className="recent-bar-list">
-            {b.recentFolders.map((f) => (
-              <div key={f.path} className="recent-bar-item">
+          <p className="browser-hint">
+            Browse your files and select files to rename
+          </p>
+          {b.recentFolders.length > 0 && (
+            <div className="recent-empty-list">
+              <span className="recent-empty-label">Recent folders:</span>
+              {b.recentFolders.map((f) => (
                 <button
+                  key={f.path}
                   className="recent-chip"
                   onClick={() => b.navigateToFolder(f.path)}
                   title={f.path}
                 >
                   {f.label}
                 </button>
-                <button
-                  className="recent-chip-remove"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    b.removeRecentFolder(f.path);
-                  }}
-                  title="Remove from recent"
-                >
-                  &times;
-                </button>
-              </div>
-            ))}
+              ))}
+            </div>
+          )}
+        </div>
+      );
+  }
+
+  return (
+    <>
+      <div className="file-browser">
+        <div className="browser-header">
+          <span className="browser-root" title={b.rootPath}>
+            {b.rootPath}
+          </span>
+          <div className="browser-actions">
+            <button className="btn btn-sm" onClick={b.handleSelectAllToggle}>
+              {b.allSelected ? "Deselect All" : "Select All"}
+            </button>
+            <button
+              className="btn btn-sm"
+              onClick={() => {
+                clearAll();
+                b.closeFolder();
+              }}
+            >
+              Clear
+            </button>
+            <button className="btn btn-sm" onClick={b.openFolder}>
+              Browse
+            </button>
           </div>
         </div>
-      )}
 
-      <div className="browser-body">
-        {b.browserError && (
-          <div
-            className="browser-empty-msg"
-            style={{ color: "var(--color-error)" }}
-          >
-            {b.browserError}
+        {b.recentFolders.length > 0 && (
+          <div className="recent-bar">
+            <span className="recent-bar-label">Recent:</span>
+            <div className="recent-bar-list">
+              {b.recentFolders.map((f) => (
+                <div key={f.path} className="recent-bar-item">
+                  <button
+                    className="recent-chip"
+                    onClick={() => b.navigateToFolder(f.path)}
+                    title={f.path}
+                  >
+                    {f.label}
+                  </button>
+                  <button
+                    className="recent-chip-remove"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      b.removeRecentFolder(f.path);
+                    }}
+                    title="Remove from recent"
+                  >
+                    &times;
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
-        {b.rootChildren && b.rootChildren.length > 0 ? (
-          b.rootChildren.map((entry) => (
-            <TreeNode
-              key={entry.path}
-              entry={entry}
-              depth={0}
-              filePathMap={b.filePathMap}
-              expanded={b.expanded}
-              childrenMap={b.children}
-              loading={b.loading}
-              suggestions={b.suggestions}
-              generateStatus={b.generateStatus}
-              storeFiles={b.storeFiles}
-              checkedPaths={b.checkedPaths}
-              hasAnySuggestions={b.hasAnySuggestions}
-              toggleExpand={b.toggleExpand}
-              isFullyChecked={b.isFullyChecked}
-              isPartiallyChecked={b.isPartiallyChecked}
-              hasFilesRecursive={b.hasFilesRecursive}
-              handleFolderCheck={b.handleFolderCheck}
-              handleFolderExpand={b.handleFolderExpand}
-              collecting={b.collecting}
-              updateSuggestion={b.updateSuggestion}
-              handleFileCheck={b.handleFileCheck}
-              isDragging={b.isDragging}
-              handleFileClick={b.handleFileClick}
-              handleFileDragStart={b.handleFileDragStart}
-              handleFileDragOver={b.handleFileDragOver}
-              handleFileDragEnd={b.handleFileDragEnd}
-              handleFileRowClick={b.handleFileRowClick}
-              handleFileRowMouseDown={b.handleFileRowMouseDown}
-            />
-          ))
-        ) : (
-          <div className="browser-empty-msg">
-            {b.rootChildren ? "Empty folder" : "Loading..."}
-          </div>
-        )}
+
+        <div className="browser-body">
+          {b.browserError && (
+            <div
+              className="browser-empty-msg"
+              style={{ color: "var(--color-error)" }}
+            >
+              {b.browserError}
+            </div>
+          )}
+          {b.rootChildren && b.rootChildren.length > 0 ? (
+            b.rootChildren.map((entry) => (
+              <TreeNode
+                key={entry.path}
+                entry={entry}
+                depth={0}
+                filePathMap={b.filePathMap}
+                expanded={b.expanded}
+                childrenMap={b.children}
+                loading={b.loading}
+                suggestions={b.suggestions}
+                generateStatus={b.generateStatus}
+                storeFiles={b.storeFiles}
+                checkedPaths={b.checkedPaths}
+                hasAnySuggestions={b.hasAnySuggestions}
+                toggleExpand={b.toggleExpand}
+                isFullyChecked={b.isFullyChecked}
+                isPartiallyChecked={b.isPartiallyChecked}
+                hasFilesRecursive={b.hasFilesRecursive}
+                handleFolderCheck={b.handleFolderCheck}
+                handleFolderExpand={b.handleFolderExpand}
+                collecting={b.collecting}
+                updateSuggestion={b.updateSuggestion}
+                handleFileCheck={b.handleFileCheck}
+                isDragging={b.isDragging}
+                handleFileClick={b.handleFileClick}
+                handleFileDragStart={b.handleFileDragStart}
+                handleFileDragOver={b.handleFileDragOver}
+                handleFileDragEnd={b.handleFileDragEnd}
+                handleFileRowClick={b.handleFileRowClick}
+                handleFileRowMouseDown={b.handleFileRowMouseDown}
+              />
+            ))
+          ) : (
+            <div className="browser-empty-msg">
+              {b.rootChildren ? "Empty folder" : "Loading..."}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 

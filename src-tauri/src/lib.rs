@@ -67,6 +67,7 @@ pub fn run() {
             commands::load_rename_history,
             commands::list_directory,
             commands::collect_files,
+            commands::resolve_drop_paths,
             commands::start_watching,
             commands::stop_watching,
             commands::load_providers,
@@ -77,9 +78,6 @@ pub fn run() {
             commands::add_recent_folder,
             commands::load_recent_folders,
             commands::remove_recent_folder,
-            commands::load_workspace_profiles,
-            commands::save_workspace_profile,
-            commands::delete_workspace_profile,
             commands::cancel_generation,
         ])
         .run(tauri::generate_context!())

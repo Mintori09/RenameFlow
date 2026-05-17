@@ -33,7 +33,6 @@ Tauri v2 + React 19 + TypeScript. AI-powered batch file renamer.
 |------|----------|
 | Providers | `~/.config/renameflow/providers.json` |
 | Recent folders | `~/.config/renameflow/recent_folders.json` |
-| Workspace profiles | `~/.config/renameflow/workspace_profiles.json` |
 | Rename history | `<app_data_dir>/history.json` (atomic write via `.json.tmp`) |
 
 Provider model IDs use `${name}::${model}` format. Old provider JSON is auto-migrated on load.

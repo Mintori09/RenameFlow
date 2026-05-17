@@ -117,12 +117,3 @@ export type RecentFolder = {
   lastOpened: string;
   label: string;
 };
-
-export type WorkspaceProfile = {
-  name: string;
-  folderPath: string;
-  activeModelId: string;
-  style: FilenameStyle;
-  maxWords: number;
-  language: Language;
-};

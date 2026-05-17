@@ -1,4 +1,4 @@
-use crate::models::{RecentFolder, WorkspaceProfile};
+use crate::models::RecentFolder;
 
 fn get_recent_dir() -> std::path::PathBuf {
     dirs::config_dir()
@@ -8,10 +8,6 @@ fn get_recent_dir() -> std::path::PathBuf {
 
 fn get_recent_file_path() -> std::path::PathBuf {
     get_recent_dir().join("recent_folders.json")
-}
-
-fn get_profiles_file_path() -> std::path::PathBuf {
-    get_recent_dir().join("workspace_profiles.json")
 }
 
 fn save_json<T: serde::Serialize>(path: &std::path::Path, data: &T) -> Result<(), String> {
@@ -63,21 +59,4 @@ pub fn remove_recent_folder(path: &str) -> Result<(), String> {
     let mut folders = load_recent_folders();
     folders.retain(|f| f.path != path);
     save_json(&get_recent_file_path(), &folders)
-}
-
-pub fn load_profiles() -> Vec<WorkspaceProfile> {
-    load_json(&get_profiles_file_path()).unwrap_or_default()
-}
-
-pub fn save_profile(profile: &WorkspaceProfile) -> Result<(), String> {
-    let mut profiles = load_profiles();
-    profiles.retain(|p| p.name != profile.name);
-    profiles.push(profile.clone());
-    save_json(&get_profiles_file_path(), &profiles)
-}
-
-pub fn delete_profile(name: &str) -> Result<(), String> {
-    let mut profiles = load_profiles();
-    profiles.retain(|p| p.name != name);
-    save_json(&get_profiles_file_path(), &profiles)
 }

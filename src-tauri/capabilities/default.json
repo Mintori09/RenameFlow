@@ -8,6 +8,7 @@
     "core:event:allow-listen",
     "core:event:allow-emit",
     "core:window:default",
+    "core:webview:default",
     "opener:default",
     "dialog:default"
   ]

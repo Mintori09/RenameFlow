@@ -4,9 +4,8 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import { useFileStore } from "../stores/fileStore";
 import { useRecentStore } from "../stores/recentStore";
-import { useSettingsStore } from "../stores/settingsStore";
 import { listDirectory } from "../services/fileService";
-import type { DirEntry, ResolvedPath, WorkspaceProfile } from "../types";
+import type { DirEntry, ResolvedPath } from "../types";
 
 export function parentDir(p: string): string {
   const i = p.lastIndexOf("/");
@@ -30,7 +29,6 @@ export function useFileBrowser(cliPath: ResolvedPath | null) {
   const removeFilesByPaths = useFileStore((s) => s.removeFilesByPaths);
   const updateSuggestion = useFileStore((s) => s.updateSuggestion);
   const recentFolders = useRecentStore((s) => s.recentFolders);
-  const profiles = useRecentStore((s) => s.profiles);
   const removeRecentFolder = useRecentStore((s) => s.removeRecentFolder);
 
   const hasAnySuggestions = Object.keys(suggestions).length > 0;
@@ -122,6 +120,14 @@ export function useFileBrowser(cliPath: ResolvedPath | null) {
     },
     [loadChildren],
   );
+
+  const closeFolder = useCallback(() => {
+    invoke("stop_watching").catch(() => {});
+    setRootPath(null);
+    setExpanded(new Set());
+    setChildren(new Map());
+    setBrowserError(null);
+  }, []);
 
   const [collecting, setCollecting] = useState<Set<string>>(new Set());
   const collectVersionRef = useRef<Record<string, number>>({});
@@ -362,35 +368,6 @@ export function useFileBrowser(cliPath: ResolvedPath | null) {
     }
   }
 
-  async function handleSaveProfile() {
-    const name = window.prompt("Name for this workspace profile:");
-    if (!name) return;
-    const settings = useSettingsStore.getState();
-    const profile: WorkspaceProfile = {
-      name,
-      folderPath: rootPath!,
-      activeModelId: settings.activeModelId,
-      style: settings.style,
-      maxWords: settings.maxWords,
-      language: settings.language,
-    };
-    await useRecentStore.getState().saveProfile(profile);
-  }
-
-  async function handleLoadProfile(profile: WorkspaceProfile) {
-    await navigateToFolder(profile.folderPath);
-    const settings = useSettingsStore.getState();
-    settings.updateSettings({
-      style: profile.style,
-      maxWords: profile.maxWords,
-      language: profile.language,
-    });
-    if (profile.activeModelId) {
-      settings.setActiveModel(profile.activeModelId);
-    }
-    await settings.persistProviders();
-  }
-
   const rootChildren = children.get(rootPath ?? "");
 
   return {
@@ -405,7 +382,6 @@ export function useFileBrowser(cliPath: ResolvedPath | null) {
     updateSuggestion,
     recentFolders,
     removeRecentFolder,
-    profiles,
     checkedPaths,
     filePathMap,
     hasAnySuggestions,
@@ -413,6 +389,7 @@ export function useFileBrowser(cliPath: ResolvedPath | null) {
     allSelected,
     loadChildren,
     navigateToFolder,
+    closeFolder,
     openFolder,
     toggleExpand,
     isFullyChecked,
@@ -423,8 +400,6 @@ export function useFileBrowser(cliPath: ResolvedPath | null) {
     collecting,
     hasFilesRecursive,
     handleSelectAllToggle,
-    handleSaveProfile,
-    handleLoadProfile,
     isDragging,
     handleFileClick,
     handleFileDragStart,

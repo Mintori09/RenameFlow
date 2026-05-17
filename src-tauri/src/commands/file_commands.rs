@@ -3,6 +3,18 @@ use crate::models::DirEntry;
 use std::path::PathBuf;
 use tauri::{AppHandle, State};
 
+fn normalize_drop_path(raw: &str) -> String {
+    if raw.starts_with("file://") {
+        url::Url::parse(raw)
+            .ok()
+            .and_then(|u| u.to_file_path().ok())
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| raw.to_string())
+    } else {
+        raw.to_string()
+    }
+}
+
 #[tauri::command]
 pub fn start_watching(
     app: AppHandle,
@@ -45,6 +57,36 @@ pub fn list_directory(path: String) -> Result<Vec<DirEntry>, String> {
             .cmp(&a.is_dir)
             .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
     });
+    Ok(result)
+}
+
+#[tauri::command]
+pub fn resolve_drop_paths(paths: Vec<String>) -> Result<Vec<String>, String> {
+    eprintln!(
+        "[resolve_drop_paths] received {} paths: {:?}",
+        paths.len(),
+        paths
+    );
+    let mut result: Vec<String> = Vec::new();
+    for raw in paths {
+        let path = normalize_drop_path(&raw);
+        let metadata =
+            std::fs::metadata(&path).map_err(|e| format!("Failed to read path {}: {}", path, e))?;
+        if metadata.is_dir() {
+            let entries = collect_files_recursive(&path, 10, 0)?;
+            result.extend(entries.into_iter().map(|e| e.path));
+        } else {
+            let name = std::path::Path::new(&path)
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default();
+            if !name.starts_with('.') {
+                result.push(path);
+            }
+        }
+    }
+    result.sort();
+    eprintln!("[resolve_drop_paths] returning {} files", result.len());
     Ok(result)
 }
 

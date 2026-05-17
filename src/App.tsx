@@ -2,11 +2,13 @@ import { useState } from "react";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Sidebar } from "./components/Sidebar";
 import { ControlBar } from "./components/ControlBar";
+import { DragDropOverlay } from "./components/DragDropOverlay";
 import { FileBrowser } from "./components/FileBrowser";
 import { HistorySection } from "./components/HistorySection";
 import { SettingsSection } from "./components/SettingsSection";
 import { HomeToolbar } from "./components/HomeToolbar";
 import { useAppInit } from "./hooks/useAppInit";
+import { useFileDrop } from "./hooks/useFileDrop";
 import { useWorkflowStore } from "./stores/workflowStore";
 import type { View } from "./views";
 import type { ResolvedPath } from "./types";
@@ -20,6 +22,7 @@ function App() {
   );
 
   useAppInit(setCliPath);
+  const { dragState, error } = useFileDrop();
 
   return (
     <ErrorBoundary>
@@ -41,6 +44,8 @@ function App() {
           {view === "settings" && <SettingsSection />}
         </main>
       </div>
+      <DragDropOverlay dragState={dragState} />
+      {error && <div className="drop-error-toast">{error}</div>}
     </ErrorBoundary>
   );
 }
